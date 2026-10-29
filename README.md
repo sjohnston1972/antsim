@@ -14,3 +14,5 @@ Cloudflare Worker serving static assets. With `CLOUDFLARE_API_TOKEN` and `CLOUDF
 npm install
 npm run deploy
 ```
+
+Pushing to `main` deploys automatically via GitHub Actions (`.github/workflows/deploy.yml`), using the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repo secrets.
