@@ -1,0 +1,3399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ant Colony 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --panel: #111014; --card: #1b1a20; --text: #e4e0d8; --dim: #827e78;
+    --accent: #ffa537; --cool: #5fb9e1; --track: #322f38; --food: #78cd46;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0c0a09; color: var(--text);
+    font-family: Inter, "Segoe UI", sans-serif; overflow: hidden; }
+  #view { position: absolute; top: 0; bottom: 0; left: 0; right: 340px; }
+  #view canvas { display: block; }
+  #panel { position: absolute; top: 0; right: 0; width: 340px; height: 100%; background: var(--panel);
+    border-left: 1px solid #26242c; padding: 20px 22px 18px; overflow-y: auto; }
+  h1 { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: .04em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 12px; margin: 4px 0 6px; }
+  #fps { position: absolute; top: 26px; right: 22px; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .section { display: flex; align-items: center; gap: 8px; color: var(--cool); font-size: 11px; margin-top: 10px !important;
+    font-weight: 600; letter-spacing: .08em; margin: 14px 0 4px; }
+  .section::after { content: ""; flex: 1; height: 1px; background: var(--track); }
+  .slider { margin: 2px 0 7px; }
+  .slider .row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--dim); margin-bottom: 1px; }
+  .slider .row b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; margin: 0; border-radius: 2px;
+    background: linear-gradient(var(--accent), var(--accent)) 0 / var(--fill, 50%) 100% no-repeat, var(--track);
+    outline: none; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%;
+    background: #fff; border: 4px solid var(--accent); }
+  input[type=range]::-moz-range-thumb { width: 8px; height: 8px; border-radius: 50%; background: #fff; border: 4px solid var(--accent); }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 4px 0 6px; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); cursor: pointer; user-select: none; }
+  .toggle input { appearance: none; -webkit-appearance: none; flex: none; width: 28px; height: 16px; margin: 0;
+    border-radius: 8px; background: var(--track); position: relative; cursor: pointer; transition: background .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+    border-radius: 50%; background: #9a958e; transition: transform .15s, background .15s; }
+  .toggle input:checked { background: var(--accent); }
+  .toggle input:checked::after { transform: translateX(12px); background: #fff; }
+  .toggle:has(input:checked) { color: var(--text); }
+  .group .section { cursor: pointer; user-select: none; }
+  .group .section::before { content: "▾"; font-size: 10px; color: var(--dim); transition: transform .15s; }
+  .group.collapsed .section::before { transform: rotate(-90deg); }
+  .group.collapsed .body { display: none; }
+  #clock { font-size: 12px; color: var(--accent); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  .qlabel { font-size: 12.5px; color: var(--dim); margin-top: 4px; }
+  .seg { display: flex; background: var(--card); border-radius: 8px; padding: 3px; gap: 3px; margin: 4px 0 10px; }
+  .seg button, .btn, #tools button { font: 600 12px Inter, sans-serif; border: 0; cursor: pointer; }
+  .seg button { flex: 1; padding: 5px 0; border-radius: 6px; background: none; color: var(--dim); }
+  .seg button.on { background: var(--accent); color: #1a1208; }
+  .btn { margin: 4px 0 8px; padding: 6px 12px; border-radius: 8px; background: var(--card); color: var(--text);
+    border: 1px solid var(--track); }
+  .btn:hover { border-color: var(--accent); }
+  #tools { position: absolute; left: 14px; top: 14px; display: flex; flex-direction: column; gap: 5px; }
+  #tools button { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 8px;
+    background: #0c0c0acc; color: var(--dim); border: 1px solid #2a2830; text-align: left; }
+  #tools button:hover { color: var(--text); }
+  #tools button.on { color: #1a1208; background: var(--accent); border-color: var(--accent); }
+  #tools button.on kbd { background: #0002; border-color: #0003; color: #1a1208; }
+  #nestbadge { position: absolute; transform: translate(-50%, -100%); background: #0c0c0add; border: 1px solid #ffa53755;
+    border-radius: 10px; padding: 5px 8px 4px; font-size: 11px; color: var(--dim); pointer-events: none; display: none; }
+  #nestbadge b { color: var(--text); font-weight: 600; }
+  #nestbadge canvas { display: block; width: 150px; height: 26px; margin-top: 3px; }
+  .hpbar { position: absolute; width: 36px; height: 5px; transform: translate(-50%, -50%); background: #000b;
+    border-radius: 3px; overflow: hidden; pointer-events: none; display: none; }
+  .hpbar i { display: block; height: 100%; background: #eb4b46; }
+  .label.prey { border-color: #d8b04a88; color: #f1d58a; }
+  .card { background: var(--card); border-radius: 10px; padding: 10px 12px 8px; margin-top: 14px; }
+  .card .row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--dim); }
+  .card .row b { color: var(--accent); font-variant-numeric: tabular-nums; }
+  #spark, #spark2 { width: 100%; height: 44px; display: block; margin-top: 6px; }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; margin-top: 14px; font-size: 12px; }
+  .stats div { display: flex; justify-content: space-between; color: var(--dim); }
+  .stats b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .food { display: grid; grid-template-columns: 58px 1fr 76px; align-items: center; gap: 10px;
+    font-size: 12px; color: var(--dim); margin-top: 9px; }
+  .food b { color: var(--text); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--food); border-radius: 3px; }
+  .keys { margin-top: 16px; font-size: 11.5px; color: var(--dim); line-height: 2; }
+  kbd { background: var(--card); border: 1px solid var(--track); border-radius: 4px; padding: 1px 6px;
+    font-family: inherit; font-size: 11px; color: var(--text); }
+  .label { position: absolute; transform: translate(-50%, -50%); font: 600 11px Inter, sans-serif; color: var(--text);
+    background: #0c0c0acc; border: 1px solid #4b8a3388; padding: 1px 8px; border-radius: 10px;
+    pointer-events: none; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #paused { position: absolute; top: 0; bottom: 0; left: 0; right: 340px; display: none; align-items: center;
+    justify-content: center; font: 800 44px Inter, sans-serif; letter-spacing: .12em; background: #0007; pointer-events: none; }
+  #follow { position: absolute; left: 50%; transform: translateX(-50%); top: 14px; font-size: 12px; color: var(--accent); display: none;
+    background: #0c0c0acc; padding: 5px 10px; border-radius: 8px; }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="view">
+  <div id="tools"></div>
+  <div id="follow">● Following an ant · <kbd>F</kbd> next · <kbd>Esc</kbd> stop</div>
+  <div id="nestbadge"><span></span><canvas></canvas></div>
+</div>
+<div id="paused">PAUSED</div>
+<aside id="panel">
+  <div id="fps"></div>
+  <h1>ANT COLONY <span>3D</span></h1>
+  <div class="sub">Probabilistic ACO · blind foraging</div>
+  <div id="clock"></div>
+  <div id="controls"></div>
+  <div id="statsBlock">
+    <div class="card">
+      <div class="row"><span>Deliveries / sec</span><b id="rate">0.0</b></div>
+      <canvas id="spark"></canvas>
+    </div>
+    <div class="card">
+      <div class="row"><span>Colony &nbsp;<i class="dot" style="background:#ffa537"></i>ants
+        &nbsp;<i class="dot" style="background:#5fb9e1"></i>brood</span><b id="pop">0</b></div>
+      <canvas id="spark2"></canvas>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div id="foods"></div>
+  </div>
+  <div class="keys" id="keys">
+    <kbd>Space</kbd> pause &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>T</kbd> new terrain<br>
+    <kbd>U</kbd> underground cutaway &nbsp; <kbd>W</kbd> rain on/off<br>
+    <kbd>F</kbd> follow an ant &nbsp; <kbd>Esc</kbd> stop &nbsp; <kbd>C</kbd> reset camera<br>
+    <kbd>1</kbd>–<kbd>6</kbd> tools: move, food, insect, rock, water, spider den<br>
+    Drag to orbit · right-drag to pan · scroll to zoom
+  </div>
+</aside>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// ============================================================================
+// CONFIG
+// ============================================================================
+const W = 1200, H = 900;            // Simulation arena (same units as the pygame version)
+const GRID = 60, SENSE = 60;        // Spatial hash cell / ant sensing radius
+const MAX_PHER = 4000;
+const NEST_R = 22;                  // Ants inside this radius drop off food
+const PS = 3, TW = W / PS, TH = H / PS;   // Pheromone texture is 1/3 resolution
+const S = 1.6;                      // Ant model scale
+const MAX_ANTS = 320;
+const PELLETS = 70;
+const FOOD_COLORS = [0x6ec341, 0x8cd74b, 0x5aaa37, 0xafdc5a, 0x7dc85f].map(c => new THREE.Color(c));
+const ANT_SEARCH = new THREE.Color(0xc85a3c), ANT_CARRY = new THREE.Color(0xf5d296);
+
+const P = {
+  antCount: 40, antSpeed: 1.5, antMaxAge: 9000,
+  colonyCap: 150, layInterval: 40, broodTime: 900, startStore: 25,
+  nurseShare: 0.15, soldierShare: 0.1,
+  foodSize: 40, simSpeed: 1, dayLength: 7200,
+  predatorCount: 0, predatorSpeed: 1.0, huntRange: 100,
+  decay: 0.992, pherStrength: 100, reinforce: 15,
+  alpha: 1.0, beta: 2.0, elite: 0.3, explore: 0.15, spread: 30,
+  nestX: 120, nestY: 120, denX: null, denY: null,
+};
+
+// Display settings (remembered per browser; the cutaway always starts off)
+const FX = { quality: 'high', bloom: true, trails: true, foodGlow: true, nestGlow: true, spiderGlow: true,
+  ripples: true, fireflies: true, antBoost: true, nestInfo: true, dayNight: true, weather: true, cutaway: false };
+try { Object.assign(FX, JSON.parse(localStorage.getItem('antsim-fx') || '{}')); } catch {}
+FX.cutaway = false;
+
+// [section, sliders [key, label, min, max, step, decimals], open by default]
+const SLIDERS = [
+  ['COLONY', [
+    ['antCount', 'Founding ants (on reset)', 5, 200, 1, 0],
+    ['antSpeed', 'Ant speed', 0.5, 3, 0.01, 2],
+    ['antMaxAge', 'Lifespan (steps)', 2000, 20000, 100, 0],
+    ['foodSize', 'Food size', 30, 80, 1, 0],
+    ['simSpeed', 'Sim speed (steps / frame)', 1, 5, 1, 0],
+  ], true],
+  ['REPRODUCTION', [
+    ['colonyCap', 'Colony cap (ants + brood)', 20, 300, 1, 0],
+    ['layInterval', 'Egg interval (steps)', 10, 200, 1, 0],
+    ['broodTime', 'Egg → adult (steps)', 300, 3000, 10, 0],
+    ['nurseShare', 'Nurse share', 0, 0.4, 0.01, 2],
+    ['soldierShare', 'Soldier share', 0, 0.4, 0.01, 2],
+  ], false],
+  ['ENVIRONMENT', [
+    ['dayLength', 'Day length (steps)', 1800, 20000, 100, 0],
+  ], true],
+  ['PREDATORS', [
+    ['predatorCount', 'Spiders', 0, 8, 1, 0],
+    ['predatorSpeed', 'Spider speed', 0.5, 2, 0.01, 2],
+  ], true],
+  ['PHEROMONES', [
+    ['decay', 'Decay', 0.98, 0.998, 0.001, 3],
+    ['reinforce', 'Reinforce', 5, 50, 1, 0],
+    ['spread', 'Trail spread', 0, 100, 1, 0],
+  ], false],
+  ['ACO', [
+    ['alpha', 'Alpha (trail weight)', 0.1, 3, 0.01, 2],
+    ['beta', 'Beta (distance weight)', 0.1, 5, 0.01, 2],
+    ['elite', 'Elite share', 0.1, 1, 0.01, 2],
+    ['explore', 'Exploration', 0, 0.5, 0.01, 2],
+  ], false],
+];
+
+const rand = (a, b) => a + Math.random() * (b - a);
+const randi = (a, b) => Math.floor(rand(a, b + 1));
+const wx = x => x - W / 2, wz = y => y - H / 2;   // sim (x, y) -> world (x, z)
+
+// ============================================================================
+// TERRAIN - heightfield and rocks, shared by the simulation and the renderer
+// ============================================================================
+const HC = 4, HW = W / HC + 1, HH = H / HC + 1;   // One height sample every 4 units
+const heights = new Float32Array(HW * HH);
+let rocks = [], shrubs = [], obstacles = [];   // obstacles = rocks + shrub trunks
+let puddles = [], wetObstacles = [];           // puddle sites; the ones currently holding water
+
+function mulberry32(a) {
+  return () => {
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function valueNoise(rng) {
+  const N = 64, lattice = Float32Array.from({ length: N * N }, rng);
+  const at = (i, j) => lattice[(j & (N - 1)) * N + (i & (N - 1))];
+  const smooth = t => t * t * (3 - 2 * t);
+  return (x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y), xf = smooth(x - xi), yf = smooth(y - yi);
+    const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+    return a + (b - a) * xf + (c - a) * yf + (a - b - c + d) * xf * yf;
+  };
+}
+
+function generateTerrain(seed) {
+  const rng = mulberry32(seed), noise = valueNoise(rng);
+  const ox = rng() * 50, oy = rng() * 50;
+  for (let j = 0; j < HH; j++)
+    for (let i = 0; i < HW; i++) {
+      const x = i * HC, y = j * HC;
+      let h = 0, amp = 1, freq = 1 / 260;
+      for (let o = 0; o < 4; o++) {
+        h += noise(x * freq + ox, y * freq + oy) * amp;
+        amp *= 0.45;
+        freq *= 2.1;
+      }
+      // Flat lowlands below the cutoff, hills above; fade to flat at the arena edges
+      const fade = Math.min(1, Math.min(x, W - x, y, H - y) / 110);
+      heights[j * HW + i] = Math.max(0, h - 0.5) * 66 * fade * fade * (3 - 2 * fade);
+    }
+
+  // Level a pad under the nest so the mound, queen and brood sit on flat ground
+  const base = hAt(P.nestX, P.nestY);
+  for (let j = 0; j < HH; j++)
+    for (let i = 0; i < HW; i++) {
+      const d = Math.hypot(i * HC - P.nestX, j * HC - P.nestY);
+      if (d >= 85) continue;
+      const t = Math.max(0, (d - 50) / 35), k = t * t * (3 - 2 * t);
+      heights[j * HW + i] = base + (heights[j * HW + i] - base) * k;
+    }
+
+  // Puddle hollows: shallow, irregular bowls carved into the lowest ground; rain collects in them
+  puddles = [];
+  for (let tries = 0; puddles.length < 12 && tries < 900; tries++) {
+    const x = 60 + rng() * (W - 120), y = 60 + rng() * (H - 120), r = 26 + rng() * 30;
+    const h = hAt(x, y);
+    let ring = 0;
+    for (let k = 0; k < 8; k++) ring += hAt(x + Math.cos(k * 0.785) * r, y + Math.sin(k * 0.785) * r) / 8;
+    if (h > ring + 0.5 || h > 14) continue;              // hollows and low ground only
+    if (Math.hypot(x - P.nestX, y - P.nestY) < 140 + r) continue;
+    if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + r + 40)) continue;
+    const depth = 2.2 + rng() * 1.6, s1 = rng() * 10, s2 = rng() * 10;
+    for (let j = Math.max(0, Math.floor((y - r * 1.4) / HC)); j <= Math.min(HH - 1, Math.ceil((y + r * 1.4) / HC)); j++)
+      for (let i = Math.max(0, Math.floor((x - r * 1.4) / HC)); i <= Math.min(HW - 1, Math.ceil((x + r * 1.4) / HC)); i++) {
+        const dx = i * HC - x, dy = j * HC - y, a = Math.atan2(dy, dx);
+        const edge = r * (1 + 0.2 * Math.sin(a * 3 + s1) + 0.12 * Math.sin(a * 5 + s2));   // wobbly outline
+        const t = Math.hypot(dx, dy) / edge;
+        if (t < 1) heights[j * HW + i] -= depth * (1 - t * t) ** 2;
+      }
+    // Water can only rise as high as the lowest point of the rim before it would spill
+    const low = hAt(x, y);
+    let rim = Infinity;
+    for (let k = 0; k < 16; k++) rim = Math.min(rim, hAt(x + Math.cos(k * 0.393) * r * 1.15, y + Math.sin(k * 0.393) * r * 1.15));
+    const rise = Math.min(depth * 0.9, rim - low - 0.2);
+    if (rise < 0.8) continue;
+    puddles.push({ x, y, r, depth, low, rise, th: rng() * 0.35 });
+  }
+
+  rocks = [];
+  const tryRock = (x, y, r, gap) => {
+    if (x < 30 || y < 30 || x > W - 30 || y > H - 30) return false;
+    if (Math.hypot(x - P.nestX, y - P.nestY) < 110 + r) return false;
+    if (rocks.some(o => Math.hypot(x - o.x, y - o.y) < r + o.r + gap)) return false;
+    if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + r + 6)) return false;
+    rocks.push({ x, y, r });
+    return true;
+  };
+  const anywhere = () => [60 + rng() * (W - 120), 60 + rng() * (H - 120)];
+  // A few big boulders, each with a scree of smaller stones around it
+  for (let tries = 0, n = 0; n < 4 && tries < 200; tries++)
+    if (tryRock(...anywhere(), 30 + rng() * 24, 60)) {
+      n++;
+      const b = rocks[rocks.length - 1];
+      for (let k = 0; k < 7; k++) {
+        const a = rng() * Math.PI * 2, d = b.r + 6 + rng() * 32;
+        tryRock(b.x + Math.cos(a) * d, b.y + Math.sin(a) * d, 3 + rng() * 9, 3);
+      }
+    }
+  // Medium rocks, then small stones scattered everywhere
+  for (let tries = 0, n = 0; n < 12 && tries < 300; tries++) if (tryRock(...anywhere(), 12 + rng() * 14, 30)) n++;
+  for (let tries = 0, n = 0; n < 26 && tries < 400; tries++) if (tryRock(...anywhere(), 3.5 + rng() * 7, 12)) n++;
+
+  shrubs = [];
+  for (let tries = 0; shrubs.length < 9 && tries < 800; tries++) {
+    const x = 50 + rng() * (W - 100), y = 50 + rng() * (H - 100);
+    // Favour the margins so the middle stays open for foraging
+    if (rng() < Math.min(x, W - x, y, H - y) / (H / 2) * 1.3) continue;
+    if (Math.hypot(x - P.nestX, y - P.nestY) < 150) continue;
+    if (rocks.some(o => Math.hypot(x - o.x, y - o.y) < o.r + 35)) continue;
+    if (shrubs.some(o => Math.hypot(x - o.x, y - o.y) < 120)) continue;
+    if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + 45)) continue;
+    shrubs.push({ x, y, size: 0.8 + rng() * 0.6, r: 4 });
+  }
+  obstacles = [...rocks, ...shrubs];
+  return rng;
+}
+
+// Bilinear height lookup in sim coordinates
+function hAt(x, y) {
+  const gx = Math.max(0, Math.min(HW - 1.001, x / HC)), gy = Math.max(0, Math.min(HH - 1.001, y / HC));
+  const i = gx | 0, j = gy | 0, fx = gx - i, fy = gy - j, k = j * HW + i;
+  const a = heights[k], b = heights[k + 1], c = heights[k + HW], d = heights[k + HW + 1];
+  return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+}
+
+function collideRocks(o) {
+  for (const r of obstacles.length && wetObstacles.length ? obstacles.concat(wetObstacles) : obstacles) {
+    const dx = o.x - r.x, dy = o.y - r.y, rr = r.r + 3;
+    if (dx * dx + dy * dy >= rr * rr) continue;
+    const d = Math.hypot(dx, dy) || 1, nx = dx / d, ny = dy / d;
+    o.x = r.x + nx * rr;
+    o.y = r.y + ny * rr;
+    // Slide along the rock in whichever direction is closer to the current heading
+    const tx = -ny, ty = nx;
+    o.a = Math.cos(o.a) * tx + Math.sin(o.a) * ty >= 0 ? Math.atan2(ty, tx) : Math.atan2(-ty, -tx);
+  }
+}
+
+// ============================================================================
+// SIMULATION
+// ============================================================================
+// Shared environment state: time of day, daylight (0 night .. 1 day), rain intensity (0..1)
+// wet: how much water is standing in the puddles (fills while raining, evaporates after)
+const env = { tod: 0.3, day: 1, rain: 0, rainTimer: 0, dayCount: 1, wet: 0 };
+
+class Field {
+  // Pheromones in a spatial hash so ants only scan nearby cells
+  constructor() { this.items = []; this.cells = new Map(); }
+  add(p) {
+    this.items.push(p);
+    const k = ((p.x / GRID) | 0) * 64 + ((p.y / GRID) | 0);
+    let c = this.cells.get(k);
+    if (!c) this.cells.set(k, c = []);
+    c.push(p);
+  }
+  update() {
+    // Trails cool off faster at night and wash away in the rain
+    const decay = P.decay ** (1 + (1 - env.day) * 1.5) * (1 - 0.02 * env.rain);
+    let alive = [];
+    for (const p of this.items) {
+      p.s *= decay;
+      p.uses *= 0.9;          // saturation recovers over time
+      if (p.s > 5) alive.push(p);
+    }
+    if (alive.length > MAX_PHER) {
+      alive.sort((a, b) => b.s - a.s);
+      alive.length = Math.floor(MAX_PHER * 0.85);
+    }
+    this.items = [];
+    this.cells.clear();
+    for (const p of alive) this.add(p);
+  }
+  near(x, y) {
+    const gx = (x / GRID) | 0, gy = (y / GRID) | 0, out = [];
+    for (let i = -1; i <= 1; i++)
+      for (let j = -1; j <= 1; j++) {
+        const c = this.cells.get((gx + i) * 64 + gy + j);
+        if (c) out.push(c);
+      }
+    return out;
+  }
+  deposit(x, y, s, type, reinforce) {
+    // Strengthen an existing pheromone of the same type close by, or lay a new one
+    for (const c of this.near(x, y))
+      for (const p of c)
+        if (p.type === type && (p.x - x) ** 2 + (p.y - y) ** 2 < 36) {
+          p.s = Math.min(p.max * 2, p.s + (reinforce ?? s * 0.5));
+          p.uses += 1;
+          return;
+        }
+    this.add({ x, y, s, max: s, type, uses: 0 });
+  }
+  wash(x, y, r) {
+    for (const p of this.items) if ((p.x - x) ** 2 + (p.y - y) ** 2 < r * r) p.s = 0;
+  }
+}
+const TO_NEST = 0, TO_FOOD = 1;
+const effective = p => p.s / (1 + p.uses * 0.3);   // crowded trails are less attractive
+
+class Ant {
+  constructor(x, y, age = 0, caste = 'forager') {
+    this.x = x; this.y = y; this.age = age; this.caste = caste;
+    this.a = rand(0, Math.PI * 2);
+    this.food = false;
+    this.gait = rand(0, Math.PI * 2);
+    this.trips = [];
+    this.tripStart = 0;
+    this.prey = null;      // dead insect this ant is helping to drag home
+    this.homing = false;   // heading in for the night
+    this.inside = false;   // sheltering in the nest
+    this.dead = false;
+  }
+  score() { return this.trips.length ? this.trips.reduce((a, b) => a + b, 0) / this.trips.length : Infinity; }
+  reinforceAmount(elite) {
+    if (!this.trips.length) return P.reinforce * 0.5;
+    return elite.has(this) ? P.reinforce * 2 : P.reinforce;
+  }
+  senses(dx, dy, d) {
+    // Forward sensing cone (+/-60 deg)
+    return d >= 3 && dx * Math.cos(this.a) + dy * Math.sin(this.a) > 0.5 * d;
+  }
+  pick(cands) {
+    let total = 0;
+    for (const c of cands) total += c[1];
+    let r = Math.random() * total;
+    for (const c of cands) if ((r -= c[1]) <= 0) return c[0];
+    return cands[cands.length - 1][0];
+  }
+  turn(target, rate, jitter) {
+    let d = (target - this.a + Math.PI) % (Math.PI * 2);
+    if (d < 0) d += Math.PI * 2;
+    this.a += (d - Math.PI) * rate + rand(-jitter, jitter);
+  }
+  scoreOf(p, d2) { return effective(p) ** P.alpha * (1 / (1 + Math.sqrt(d2))) ** P.beta; }
+
+  move(mul = 1) {
+    // Uphill is slow going, downhill is quicker; rain slows everyone down
+    const climb = hAt(this.x + Math.cos(this.a) * 3, this.y + Math.sin(this.a) * 3) - hAt(this.x, this.y);
+    const speed = P.antSpeed * mul * (1 - 0.25 * env.rain) * Math.max(0.45, Math.min(1.25, 1 - climb * 0.3));
+    this.x += Math.cos(this.a) * speed;
+    this.y += Math.sin(this.a) * speed;
+    this.gait += speed * 0.45;
+    if (this.x < 0 || this.x > W) { this.a = Math.PI - this.a; this.x = Math.max(0, Math.min(W, this.x)); }
+    if (this.y < 0 || this.y > H) { this.a = -this.a; this.y = Math.max(0, Math.min(H, this.y)); }
+    collideRocks(this);
+  }
+
+  update(elite, frame) {
+    this.age++;
+    if (this.age > P.antMaxAge) return 'dead';
+    if (this.inside) {
+      // Sheltering overnight; trickle back out once it's light
+      if (env.day > 0.5 && Math.random() < 0.01) {
+        this.inside = false;
+        this.x = P.nestX + rand(-6, 6);
+        this.y = P.nestY + rand(-6, 6);
+        this.a = rand(0, Math.PI * 2);
+      }
+      return null;
+    }
+    if (this.prey) { this.haul(); return null; }
+    if (this.caste === 'soldier') { this.guard(); return null; }
+    return this.forage(elite, frame);
+  }
+
+  haul() {
+    // Position is set by the insect being dragged; haulers mark the route home as they go,
+    // and while waiting for help they keep the far end of the trail fresh
+    if (this.prey.moving) {
+      this.gait += P.antSpeed * 0.3;
+      if (Math.random() < 0.25) field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce);
+    } else if (Math.random() < 0.05) field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce * 0.5);
+  }
+
+  guard() {
+    // Soldiers rush spiders that come near the nest (or near them) and bite; otherwise patrol
+    let target = null, bd = Infinity;
+    for (const sp of spiders) {
+      const d = Math.hypot(sp.x - this.x, sp.y - this.y);
+      if ((Math.hypot(sp.x - P.nestX, sp.y - P.nestY) < 280 || d < 150) && d < bd) { target = sp; bd = d; }
+    }
+    this.biting = false;
+    if (target) {
+      this.turn(Math.atan2(target.y - this.y, target.x - this.x), 0.35, 0.05);
+      if (bd < 16) {
+        target.hp -= 1;
+        this.biting = true;
+        this.gait += 0.25;
+        return;
+      }
+      this.move(1.15);
+    } else {
+      const dn = Math.hypot(this.x - P.nestX, this.y - P.nestY);
+      if (dn > 150) this.turn(Math.atan2(P.nestY - this.y, P.nestX - this.x), 0.08, 0.15);
+      else {
+        if (Math.random() < 0.04) this.a += rand(-1, 1);
+        this.turn(this.a, 0, 0.1);
+      }
+      this.move(0.7);
+    }
+  }
+
+  forage(elite, frame) {
+    const nx = P.nestX, ny = P.nestY;
+
+    // At dusk foragers drift home; they come back out in the morning
+    if (!this.food && !this.homing && env.day < 0.3 && Math.random() < 0.004) this.homing = true;
+    if (this.homing) {
+      if (env.day > 0.5) this.homing = false;
+      const dx = nx - this.x, dy = ny - this.y;
+      if (dx * dx + dy * dy < NEST_R * NEST_R) {
+        this.homing = false;
+        this.inside = true;
+        return null;
+      }
+      this.turn(Math.atan2(dy, dx), 0.2, 0.15);
+      this.move();
+      return null;
+    }
+
+    // Run from a hunting spider that gets close (one busy eating is left alone)
+    for (const sp of spiders) {
+      const dx = this.x - sp.x, dy = this.y - sp.y;
+      if (sp.timer === 0 && dx * dx + dy * dy < 30 * 30) {
+        this.turn(Math.atan2(dy, dx), 0.5, 0.1);
+        this.move(1.2);
+        return null;
+      }
+    }
+
+    if (this.food) {
+      // RETURN TO NEST
+      const dx = nx - this.x, dy = ny - this.y, dn = dx * dx + dy * dy;
+      if (dn < NEST_R * NEST_R) {
+        this.food = false;
+        this.trips.push(frame - this.tripStart);
+        if (this.trips.length > 10) this.trips.shift();
+        this.a += Math.PI + rand(-0.5, 0.5);
+        return 'delivered';
+      }
+      // Probabilistic choice among nest-trail pheromones that lead closer to the nest
+      const cands = [];
+      for (const c of field.near(this.x, this.y))
+        for (const p of c) {
+          if (p.type !== TO_NEST) continue;
+          const px = p.x - this.x, py = p.y - this.y, d2 = px * px + py * py;
+          if (d2 < SENSE * SENSE && (nx - p.x) ** 2 + (ny - p.y) ** 2 < dn) {
+            const s = this.scoreOf(p, d2);
+            if (s > 0) cands.push([p, s]);
+          }
+        }
+      let target;
+      if (cands.length && Math.random() > P.explore) {
+        const p = this.pick(cands);
+        target = Math.atan2(p.y - this.y, p.x - this.x) + rand(-1, 1) * P.spread / 100;
+      } else target = Math.atan2(dy, dx);
+      this.turn(target, 0.2, 0.1);
+      // Only successful foragers lay the food trail; elite ants lay it thicker
+      if (Math.random() < 0.5) field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, this.reinforceAmount(elite));
+    } else {
+      // SEARCHING - blind: food is found only by walking into it or following trails
+      if (Math.random() < 0.2) field.deposit(this.x, this.y, P.pherStrength * 0.5, TO_NEST, P.pherStrength * 0.1);
+
+      for (const f of foods) {
+        if (f.pieces > 0 && f.inside(this.x, this.y)) {
+          const depleted = f.take();
+          this.food = true;
+          this.tripStart = frame;
+          this.a += Math.PI;
+          field.deposit(this.x, this.y, P.pherStrength * 2 * f.bonus(foods), TO_FOOD);
+          return [depleted ? 'depleted' : 'taken', f];
+        }
+      }
+
+      // Dead insects: the first ant to find one takes a scrap home and lays a trail to it;
+      // later arrivals grab hold until there are enough of them to drag it
+      for (const pr of preys) {
+        if (Math.hypot(pr.x - this.x, pr.y - this.y) > 13) continue;
+        if (!pr.scouted) {
+          pr.scouted = true;
+          this.food = true;
+          this.tripStart = frame;
+          this.a += Math.PI;
+          field.deposit(this.x, this.y, P.pherStrength * 3, TO_FOOD);
+          return ['scouted', pr];
+        }
+        if (pr.carriers.length < pr.weight + 2) {
+          pr.carriers.push(this);
+          this.prey = pr;
+          return ['grabbed', pr];
+        }
+      }
+
+      // Follow only pheromones ahead of the ant and leading away from the nest
+      const own = (this.x - nx) ** 2 + (this.y - ny) ** 2, cands = [];
+      for (const c of field.near(this.x, this.y))
+        for (const p of c) {
+          if (p.type !== TO_FOOD) continue;
+          const px = p.x - this.x, py = p.y - this.y, d2 = px * px + py * py;
+          if (d2 >= SENSE * SENSE) continue;
+          if (!this.senses(px, py, Math.sqrt(d2))) continue;
+          if ((p.x - nx) ** 2 + (p.y - ny) ** 2 < own) continue;
+          const s = this.scoreOf(p, d2);
+          if (s > 0) cands.push([p, s]);
+        }
+      let target;
+      if (cands.length && Math.random() > P.explore) {
+        const p = this.pick(cands);
+        target = Math.atan2(p.y - this.y, p.x - this.x) + rand(-1, 1) * P.spread / 100;
+      } else {
+        if (Math.random() < 0.05) this.a += rand(-0.8, 0.8);
+        target = this.a;
+      }
+      this.turn(target, 0.15, 0.15);
+    }
+
+    this.move();
+    return null;
+  }
+}
+
+class Food {
+  // main sources regrow elsewhere when used up; dropped crumbs just disappear
+  constructor(x, y, size, pieces, main = true) {
+    this.x = x; this.y = y;
+    this.main = main;
+    this.pieces = pieces ?? (Math.random() < 0.5 ? randi(50, 499) : randi(500, 1000));
+    this.max = this.pieces;
+    this.recent = 0;
+    this.regrow = 0;
+    this.view = null;
+    this.resize(size);
+  }
+  resize(size) {
+    this.size = size;
+    // Pellets sorted inner-first so the outer ones vanish first as food runs out
+    const count = this.main ? PELLETS : Math.max(10, Math.min(PELLETS, Math.round(PELLETS * (size / 40) ** 2)));
+    this.pellets = [];
+    for (let i = 0; i < count; i++) {
+      const a = rand(0, Math.PI * 2), d = size * 0.85 * Math.sqrt(Math.random());
+      this.pellets.push({ ox: Math.cos(a) * d, oy: Math.sin(a) * d, d, r: rand(2.5, 4.5),
+        c: FOOD_COLORS[randi(0, FOOD_COLORS.length - 1)], rx: rand(0, 6), ry: rand(0, 6) });
+    }
+    this.pellets.sort((a, b) => a.d - b.d);
+  }
+  inside(x, y) { return (x - this.x) ** 2 + (y - this.y) ** 2 < this.size ** 2; }
+  take() {
+    if (this.pieces > 0) { this.pieces--; this.recent++; return this.pieces === 0; }
+    return false;
+  }
+  bonus(all) {
+    // Bonus for finding an under-used source
+    const active = all.filter(f => f.pieces > 0);
+    if (active.length <= 1) return 1;
+    const total = active.reduce((s, f) => s + f.recent, 0);
+    if (total === 0) return 2;
+    const mine = this.recent / total, avg = 1 / active.length;
+    return mine < avg ? Math.max(3 - mine / avg * 2, 1) : 0.5;
+  }
+}
+
+class Prey {
+  // A dead insect: too heavy for one ant, worth a lot of food once dragged home
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.a = rand(0, Math.PI * 2);
+    this.weight = randi(3, 5);        // ants needed to drag it
+    this.value = randi(12, 20);
+    this.carriers = [];
+    this.scouted = false;
+    this.moving = false;
+    this.view = makePreyView();
+  }
+  update() {
+    this.carriers = this.carriers.filter(a => !a.dead);
+    this.moving = this.carriers.length >= this.weight;
+    if (this.moving) {
+      if (Math.hypot(P.nestX - this.x, P.nestY - this.y) < NEST_R + 8) return 'delivered';
+      let d = (Math.atan2(P.nestY - this.y, P.nestX - this.x) - this.a + Math.PI) % (Math.PI * 2);
+      if (d < 0) d += Math.PI * 2;
+      this.a += (d - Math.PI) * 0.05;
+      const speed = P.antSpeed * 0.35 * Math.min(1.4, this.carriers.length / this.weight) * (1 - 0.25 * env.rain);
+      this.x += Math.cos(this.a) * speed;
+      this.y += Math.sin(this.a) * speed;
+      collideRocks(this);
+    }
+    // Haulers hold on evenly around the body, facing in
+    const n = this.carriers.length;
+    this.carriers.forEach((ant, i) => {
+      const ang = this.a + Math.PI / 2 + i / n * Math.PI * 2;
+      ant.x = this.x + Math.cos(ang) * 11;
+      ant.y = this.y + Math.sin(ang) * 11;
+      ant.a = ang + Math.PI;
+    });
+    return null;
+  }
+}
+
+class Spider {
+  constructor() {
+    if (P.denX != null) { this.x = P.denX + rand(-10, 10); this.y = P.denY + rand(-10, 10); }
+    else {
+      // Wander in from a random edge
+      const e = randi(0, 3), t = rand(30, (e % 2 ? H : W) - 30);
+      [this.x, this.y] = [[t, 15], [W - 15, t], [t, H - 15], [15, t]][e];
+    }
+    this.a = Math.atan2(H / 2 - this.y, W / 2 - this.x);
+    this.timer = 0; this.gait = 0; this.hunting = false;
+    this.hp = this.maxHp = 300;
+    this.view = makeSpiderView();
+  }
+  update(ants) {
+    this.hp = Math.min(this.maxHp, this.hp + 0.05);
+    if (this.timer > 0) { this.timer--; return null; }
+    let best = null, bd = Infinity;
+    for (const a of ants) {
+      if (a.inside) continue;
+      const d = Math.hypot(a.x - this.x, a.y - this.y);
+      if (d < P.huntRange && d < bd) { best = a; bd = d; }
+    }
+    this.hunting = !!best;
+    if (best) {
+      this.a = Math.atan2(best.y - this.y, best.x - this.x);
+      if (bd < 5) return best;
+    } else if (Math.random() < 0.03) this.a += rand(-0.5, 0.5);
+    this.x += Math.cos(this.a) * P.predatorSpeed;
+    this.y += Math.sin(this.a) * P.predatorSpeed;
+    this.gait += P.predatorSpeed * 0.3;
+    if (this.x < 0 || this.x > W) { this.a = Math.PI - this.a; this.x = Math.max(0, Math.min(W, this.x)); }
+    if (this.y < 0 || this.y > H) { this.a = -this.a; this.y = Math.max(0, Math.min(H, this.y)); }
+    collideRocks(this);
+    return null;
+  }
+}
+
+// ---- Underground: tunnel network in nest-local "wall" coordinates (x across, y up, 0 = ground) ----
+const TUNNEL_NODES = [
+  { x: 0, y: 1 },                                          // 0 entrance shaft
+  { x: 3, y: -24 },                                        // 1 junction
+  { x: -36, y: -38, rx: 15, ry: 7.5, room: 'nursery' },    // 2
+  { x: 10, y: -50 },                                       // 3 junction
+  { x: 33, y: -46, rx: 16, ry: 8, room: 'nursery' },       // 4
+  { x: -2, y: -70 },                                       // 5 junction
+  { x: -30, y: -87, rx: 21, ry: 10, room: 'queen' },       // 6
+  { x: 31, y: -94, rx: 17, ry: 8.5, room: 'store' },       // 7
+];
+const TUNNEL_EDGES = [[0, 1, 4], [1, 2, -6], [1, 3, 5], [3, 4, -4], [3, 5, 6], [5, 6, -5], [5, 7, 5]];   // [from, to, bend]
+const TUNNEL_R = 3.6;   // tunnel half-height
+// Each edge is a quadratic curve bowed sideways by its bend
+const EDGE_CTRL = TUNNEL_EDGES.map(([a, b, bend]) => {
+  const A = TUNNEL_NODES[a], B = TUNNEL_NODES[b], dx = B.x - A.x, dy = B.y - A.y, l = Math.hypot(dx, dy);
+  return { x: (A.x + B.x) / 2 - dy / l * bend, y: (A.y + B.y) / 2 + dx / l * bend, len: l };
+});
+function edgePoint(e, t) {
+  const A = TUNNEL_NODES[TUNNEL_EDGES[e][0]], B = TUNNEL_NODES[TUNNEL_EDGES[e][1]], C = EDGE_CTRL[e], u = 1 - t;
+  return {
+    x: u * u * A.x + 2 * u * t * C.x + t * t * B.x, y: u * u * A.y + 2 * u * t * C.y + t * t * B.y,
+    dx: 2 * u * (C.x - A.x) + 2 * t * (B.x - C.x), dy: 2 * u * (C.y - A.y) + 2 * t * (B.y - C.y),
+  };
+}
+const roomFloor = n => n.y - (n.ry ? n.ry * 0.62 : TUNNEL_R * 0.72);
+
+// Nurses never leave the nest: they walk the tunnels and tend the brood (feeding capacity)
+class Nurse {
+  constructor(age = 0) {
+    this.age = age;
+    this.node = [2, 4, 6, 7][randi(0, 3)];
+    this.edge = -1;
+    this.work = randi(30, 200);
+    this.off = 0;
+    this.facing = Math.random() < 0.5 ? -1 : 1;
+    this.gait = rand(0, 6);
+    this.settle();
+  }
+  settle() {
+    const n = TUNNEL_NODES[this.node];
+    this.x = n.x + this.off; this.y = roomFloor(n); this.dx = this.facing; this.dy = 0;
+  }
+  pickEdge(from) {
+    let opts = [];
+    TUNNEL_EDGES.forEach(([a, b], i) => {
+      if (a === this.node) opts.push([i, 1]);
+      if (b === this.node) opts.push([i, -1]);
+    });
+    if (opts.length > 1) opts = opts.filter(([i]) => i !== from);
+    [this.edge, this.dir] = opts[randi(0, opts.length - 1)];
+    this.t = this.dir > 0 ? 0 : 1;
+  }
+  update() {
+    this.age++;
+    if (this.age > P.antMaxAge) return 'dead';
+    if (this.work > 0) {
+      // Pottering about the chamber floor
+      const n = TUNNEL_NODES[this.node], lim = (n.rx || 2) * 0.6;
+      if (Math.random() < 0.02) this.facing = -this.facing;
+      this.off += this.facing * 0.22;
+      if (Math.abs(this.off) >= lim) { this.off = Math.sign(this.off) * lim; this.facing = -this.facing; }
+      this.gait += 0.1;
+      this.settle();
+      if (--this.work === 0) { this.off = 0; this.pickEdge(-1); }
+      return null;
+    }
+    this.t += this.dir * 0.45 / EDGE_CTRL[this.edge].len;
+    this.gait += 0.2;
+    if (this.t >= 1 || this.t <= 0) {
+      const from = this.edge;
+      this.node = TUNNEL_EDGES[from][this.dir > 0 ? 1 : 0];
+      if (TUNNEL_NODES[this.node].room) { this.work = randi(120, 420); this.off = 0; this.settle(); }
+      else this.pickEdge(from);
+      return null;
+    }
+    const p = edgePoint(this.edge, this.t);
+    this.x = p.x; this.y = p.y - TUNNEL_R * 0.72;
+    this.dx = p.dx * this.dir; this.dy = p.dy * this.dir;
+    return null;
+  }
+}
+
+// ============================================================================
+// RENDERER, SCENE, CAMERA
+// ============================================================================
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.55;
+renderer.localClippingEnabled = true;   // for the underground cutaway
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0908);
+scene.fog = new THREE.Fog(0x0b0908, 1500, 3200);
+
+const camera = new THREE.PerspectiveCamera(42, 1, 1, 6000);
+const HOME_POS = new THREE.Vector3(0, 900, 820);
+
+const hemi = new THREE.HemisphereLight(0x9aa6b8, 0x2a1d12, 1.0);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe2bf, 2.2);
+sun.position.set(-760, 560, -260);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -760, right: 760, top: 760, bottom: -760, near: 100, far: 2600 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.6;
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x6fa8ff, 0.45);
+rim.position.set(500, 300, 600);
+scene.add(rim);
+// Cool moonlight that takes over at night
+const moon = new THREE.DirectionalLight(0x8fa8ff, 0);
+moon.position.set(520, 700, 380);
+scene.add(moon);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.75, 0.55, 0.72);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ============================================================================
+// TEXTURES
+// ============================================================================
+function soilTexture() {
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#251d16';
+  g.fillRect(0, 0, W, H);
+  // Mottling
+  for (let i = 0; i < 320; i++) {
+    const x = rand(0, W), y = rand(0, H), r = rand(20, 110);
+    const light = Math.random() < 0.5;
+    const grad = g.createRadialGradient(x, y, 0, x, y, r);
+    grad.addColorStop(0, light ? 'rgba(70,54,40,0.16)' : 'rgba(5,4,3,0.22)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // Grit and pebbles
+  for (let i = 0; i < 2600; i++) {
+    const x = rand(0, W), y = rand(0, H), r = [0.7, 0.8, 1, 1.2, 1.6, 2.2][randi(0, 5)];
+    const v = randi(45, 95);
+    g.fillStyle = `rgba(${v},${(v * 0.8) | 0},${(v * 0.62) | 0},${rand(0.4, 0.9)})`;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  for (let i = 0; i < 60; i++) {
+    const x = rand(0, W), y = rand(0, H), rw = rand(3, 7), rh = rand(2, 5), rot = rand(0, 3);
+    g.fillStyle = 'rgba(0,0,0,0.5)';
+    g.beginPath(); g.ellipse(x + 1.5, y + 1.5, rw, rh, rot, 0, Math.PI * 2); g.fill();
+    const v = randi(70, 110);
+    g.fillStyle = `rgb(${v},${(v * 0.82) | 0},${(v * 0.66) | 0})`;
+    g.beginPath(); g.ellipse(x, y, rw, rh, rot, 0, Math.PI * 2); g.fill();
+  }
+  // Fade edges into the surrounding darkness
+  const edge = 60;
+  for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [
+    [0, 0, edge, 0, 0, 0, edge, H], [W, 0, W - edge, 0, W - edge, 0, edge, H],
+    [0, 0, 0, edge, 0, 0, W, edge], [0, H, 0, H - edge, 0, H - edge, W, edge]]) {
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, 'rgba(11,9,8,1)');
+    grad.addColorStop(1, 'rgba(11,9,8,0)');
+    g.fillStyle = grad;
+    g.fillRect(rx, ry, rw, rh);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return tex;
+}
+
+function glowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const GLOW = glowTexture();
+
+function glowPlane(color, opacity) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshBasicMaterial({ map: GLOW, color, transparent: true, opacity,
+      blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+  m.renderOrder = 2;
+  return m;
+}
+
+// ============================================================================
+// WORLD: ground, pheromone layer, nest
+// ============================================================================
+// Ground mesh vertices line up 1:1 with the height grid
+const groundGeo = new THREE.PlaneGeometry(W, H, HW - 1, HH - 1).rotateX(-Math.PI / 2);
+groundGeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(HW * HH * 3), 3));
+const ground = new THREE.Mesh(groundGeo,
+  new THREE.MeshStandardMaterial({ map: soilTexture(), roughness: 0.96, vertexColors: true }));
+ground.receiveShadow = ground.castShadow = true;
+scene.add(ground);
+const outer = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000).rotateX(-Math.PI / 2),
+  new THREE.MeshStandardMaterial({ color: 0x0b0908, roughness: 1 }));
+outer.position.y = -0.4;
+outer.receiveShadow = true;
+scene.add(outer);
+
+// Pheromones are splatted into a low-res texture each frame and drawn additively over the ground
+const pherData = new Uint8Array(TW * TH * 4);
+const pherAccum = new Float32Array(TW * TH * 3);
+const pherTex = new THREE.DataTexture(pherData, TW, TH, THREE.RGBAFormat);
+pherTex.magFilter = pherTex.minFilter = THREE.LinearFilter;
+pherTex.colorSpace = THREE.SRGBColorSpace;
+const pherGeo = new THREE.PlaneGeometry(W, H, HW - 1, HH - 1).rotateX(-Math.PI / 2);
+const pherPlane = new THREE.Mesh(pherGeo,
+  new THREE.MeshBasicMaterial({ map: pherTex, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, toneMapped: false }));
+pherPlane.renderOrder = 1;
+scene.add(pherPlane);
+
+const DAMP = new THREE.Color(0.6, 0.54, 0.5), DRY = new THREE.Color(1.3, 1.15, 0.95), EXPOSED = new THREE.Color(1.25, 0.9, 0.7);
+function updateTerrainMeshes() {
+  const pos = groundGeo.attributes.position, col = groundGeo.attributes.color, ppos = pherGeo.attributes.position;
+  let maxH = 1;
+  for (const h of heights) maxH = Math.max(maxH, h);
+  for (let i = 0; i < heights.length; i++) {
+    pos.setY(i, heights[i]);
+    ppos.setY(i, heights[i] + 0.7);
+  }
+  groundGeo.computeVertexNormals();
+  const nrm = groundGeo.attributes.normal, c = new THREE.Color();
+  // Low ground is darker and damp, hilltops dry, steep slopes show redder exposed earth
+  for (let i = 0; i < heights.length; i++) {
+    c.copy(DAMP).lerp(DRY, heights[i] / maxH).lerp(EXPOSED, Math.min(1, (1 - nrm.getY(i)) * 4));
+    col.setXYZ(i, c.r, c.g, c.b);
+  }
+  pos.needsUpdate = col.needsUpdate = ppos.needsUpdate = true;
+  groundGeo.computeBoundingSphere();
+  pherGeo.computeBoundingSphere();
+}
+
+const FOOD_TRAIL = [1.0, 0.55, 0.12], NEST_TRAIL = [0.12, 0.5, 0.75];
+const KERNEL = [[0, 0, 1], [-1, 0, .5], [1, 0, .5], [0, -1, .5], [0, 1, .5], [-1, -1, .22], [1, -1, .22], [-1, 1, .22], [1, 1, .22]];
+function drawPheromones(field, t) {
+  pherAccum.fill(0);
+  const ref = P.pherStrength * 1.5;
+  for (const p of field.items) {
+    const food = p.type === TO_FOOD;
+    let k = Math.min(1, p.s / ref) * (food ? 0.85 : 0.5);
+    // Busy food trails pulse, the pulses running towards the nest
+    if (food && p.uses > 0.3) k *= 1 + 0.9 * Math.max(0, Math.sin(t * 5 + Math.hypot(p.x - P.nestX, p.y - P.nestY) * 0.08)) ** 2;
+    const col = food ? FOOD_TRAIL : NEST_TRAIL;
+    const tx = (p.x / PS) | 0, ty = TH - 1 - ((p.y / PS) | 0);   // texture rows run bottom-up
+    for (const [ox, oy, w] of KERNEL) {
+      const x = tx + ox, y = ty + oy;
+      if (x < 0 || y < 0 || x >= TW || y >= TH) continue;
+      const i = (y * TW + x) * 3, kw = k * w;
+      pherAccum[i] += col[0] * kw;
+      pherAccum[i + 1] += col[1] * kw;
+      pherAccum[i + 2] += col[2] * kw;
+    }
+  }
+  for (let i = 0, j = 0; i < pherAccum.length; i += 3, j += 4) {
+    pherData[j] = Math.min(255, pherAccum[i] * 255);
+    pherData[j + 1] = Math.min(255, pherAccum[i + 1] * 255);
+    pherData[j + 2] = Math.min(255, pherAccum[i + 2] * 255);
+    pherData[j + 3] = 255;
+  }
+  pherTex.needsUpdate = true;
+}
+
+// Nest: a lumpy, crumbling dirt mound with a ragged crater, side entrances and spoil heaps
+const NEST_PROFILE = [[6, 0.6], [6.8, 3.6], [9, 7], [14, 7.6], [22, 5], [32, 1.8], [41, 0.5], [47, -1.4]];
+const SIDE_HOLES = [[1.9, 19], [4.3, 21]];   // [angle, radius] of the smaller entrances
+function moundHeight(r) {
+  for (let i = 1; i < NEST_PROFILE.length; i++)
+    if (r <= NEST_PROFILE[i][0]) {
+      const [r0, y0] = NEST_PROFILE[i - 1], [r1, y1] = NEST_PROFILE[i];
+      return y0 + (y1 - y0) * Math.max(0, r - r0) / (r1 - r0);
+    }
+  return 0;
+}
+const moundNoise = valueNoise(mulberry32(4242));
+function moundBump(x, z) {
+  // Lumps fade in past the crater lip and out towards the mound's edge
+  const r = Math.hypot(x, z);
+  const w = Math.min(1, Math.max(0, (r - 6.5) / 3)) * Math.min(1, Math.max(0, (42 - r) / 12));
+  const n = moundNoise(x * 0.15 + 10, z * 0.15 + 10) - 0.5 + (moundNoise(x * 0.38 + 30, z * 0.38 + 30) - 0.5) * 0.3;
+  return n * 6 * w;
+}
+// Mound surface height at a point in nest-local coordinates
+const moundY = (x, z) => moundHeight(Math.hypot(x, z)) + moundBump(x, z);
+
+const nest = new THREE.Group();
+{
+  // Dense profile so the bumps have vertices to work with
+  const pts = [];
+  for (let r = NEST_PROFILE[0][0]; r <= 47; r += 0.75) pts.push(new THREE.Vector2(r, moundHeight(r)));
+  pts.reverse();   // outside-in so the lathe's faces (and normals) point up and out
+  const geo = new THREE.LatheGeometry(pts, 96);
+  const pos = geo.attributes.position, colors = new Float32Array(pos.count * 3);
+  const dark = new THREE.Color(0x6e4f33), mid = new THREE.Color(0xa47a52), light = new THREE.Color(0xcc9f70), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), b = moundBump(x, z);
+    pos.setY(i, pos.getY(i) + b);
+    // Hollows darker, ridges lighter, plus per-vertex grit (hashed from position so the lathe seam matches)
+    const grit = moundNoise(x * 1.7 + 70, z * 1.7 + 70);
+    c.copy(mid).lerp(b < 0 ? dark : light, Math.min(1, Math.abs(b) / 3)).multiplyScalar(0.8 + grit * 0.4);
+    colors.set([c.r, c.g, c.b], i * 3);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const mound = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
+  mound.castShadow = mound.receiveShadow = true;
+  nest.add(mound);
+
+  const holeMat = new THREE.MeshBasicMaterial({ color: 0x050302 });
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(6.6, 32).rotateX(-Math.PI / 2), holeMat);
+  hole.position.y = 0.7;
+  nest.add(hole);
+  for (const [a, r] of SIDE_HOLES) {
+    const x = Math.cos(a) * r, z = Math.sin(a) * r;
+    const side = new THREE.Mesh(new THREE.CircleGeometry(2.3, 16).rotateX(-Math.PI / 2), holeMat);
+    side.scale.set(1.3, 1, 0.9);
+    side.rotation.y = -a;
+    side.position.set(x, moundY(x, z) + 0.25, z);
+    nest.add(side);
+  }
+
+  // Loose soil granules: piled around every entrance, fanned down one side as fresh spoil, scattered elsewhere
+  const granules = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+    new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), 420);
+  granules.castShadow = granules.receiveShadow = true;
+  const d = new THREE.Object3D();
+  let n = 0;
+  const granule = (x, z, s, fresh) => {
+    d.position.set(x, moundY(x, z) + s * 0.35, z);
+    d.rotation.set(rand(0, 6), rand(0, 6), rand(0, 6));
+    d.scale.set(s, s * rand(0.6, 1), s);
+    d.updateMatrix();
+    granules.setMatrixAt(n, d.matrix);
+    granules.setColorAt(n++, new THREE.Color().setHSL(0.07, rand(0.4, 0.55), fresh ? rand(0.24, 0.33) : rand(0.14, 0.24)));
+  };
+  for (let i = 0; i < 110; i++) {                          // crater rim
+    const a = rand(0, Math.PI * 2), r = rand(6.8, 11);
+    granule(Math.cos(a) * r, Math.sin(a) * r, rand(0.5, 1.9), rand(0, 1) < 0.6);
+  }
+  for (const [ha, hr] of SIDE_HOLES)
+    for (let i = 0; i < 40; i++) {                         // side entrance rims
+      const a = rand(0, Math.PI * 2), r = rand(2.4, 5);
+      granule(Math.cos(ha) * hr + Math.cos(a) * r, Math.sin(ha) * hr + Math.sin(a) * r, rand(0.4, 1.4), true);
+    }
+  for (let i = 0; i < 120; i++) {                          // spoil fan
+    const a = -0.9 + rand(-0.45, 0.45), r = 9 + rand(0, 1) ** 0.7 * 30;
+    granule(Math.cos(a) * r, Math.sin(a) * r, rand(0.5, 2.2) * (1 - r / 60), true);
+  }
+  while (n < 400) {                                        // everywhere else
+    const a = rand(0, Math.PI * 2), r = rand(8, 44);
+    granule(Math.cos(a) * r, Math.sin(a) * r, rand(0.4, 1.6), false);
+  }
+  granules.count = n;
+  nest.add(granules);
+
+  // A few stones the ants have dug up
+  for (let i = 0; i < 9; i++) {
+    const a = rand(0, Math.PI * 2), r = rand(10, 36), s = rand(1.4, 3);
+    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({
+      color: new THREE.Color().setHSL(0.08, 0.1, rand(0.22, 0.32)), roughness: 0.9, flatShading: true }));
+    stone.position.set(Math.cos(a) * r, moundY(Math.cos(a) * r, Math.sin(a) * r) + s * 0.3, Math.sin(a) * r);
+    stone.scale.set(s, s * 0.7, s * rand(0.8, 1.1));
+    stone.rotation.set(rand(0, 6), rand(0, 6), rand(0, 6));
+    stone.castShadow = stone.receiveShadow = true;
+    nest.add(stone);
+  }
+
+  // Bits of plant debris hauled onto the mound
+  const debrisMat = new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 });
+  for (let i = 0; i < 14; i++) {
+    const a = rand(0, Math.PI * 2), r = rand(11, 34), len = rand(5, 11), yaw = rand(0, Math.PI * 2);
+    const x0 = Math.cos(a) * r, z0 = Math.sin(a) * r;
+    const x1 = x0 + Math.cos(yaw) * len, z1 = z0 + Math.sin(yaw) * len;
+    const mx = (x0 + x1) / 2 + rand(-1, 1), mz = (z0 + z1) / 2 + rand(-1, 1);
+    const { geo: stick } = taperedTube([
+      new THREE.Vector3(x0, moundY(x0, z0) + 0.4, z0),
+      new THREE.Vector3(mx, moundY(mx, mz) + 0.6, mz),
+      new THREE.Vector3(x1, moundY(x1, z1) + 0.3, z1)], rand(0.3, 0.55), 0.1, 4);
+    const m = new THREE.Mesh(stick, debrisMat);
+    m.castShadow = true;
+    nest.add(m);
+  }
+
+  const glow = glowPlane(0xff9a4a, 0.2);
+  glow.material.depthTest = true;   // only a halo around the base, never painted over the mound
+  glow.scale.setScalar(180);
+  glow.position.y = 1.2;   // clear of the ground so it never z-fights
+  nest.add(glow);
+  nest.userData.glow = glow;
+}
+scene.add(nest);
+
+// ============================================================================
+// ROCKS AND GROUND COVER (rebuilt with each new terrain)
+// ============================================================================
+const deco = new THREE.Group();
+scene.add(deco);
+const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true });
+const leafMat = new THREE.MeshStandardMaterial({ roughness: 0.85, side: THREE.DoubleSide });
+const twigMat = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+const pebbleMat = new THREE.MeshStandardMaterial({ roughness: 0.85, flatShading: true });
+const leafGeo = new THREE.CircleGeometry(1, 10).rotateX(-Math.PI / 2);
+const pebbleGeo = new THREE.IcosahedronGeometry(1, 0);
+const MOSS = new THREE.Color(0x4f6a2c);
+
+// Breeze, done in the vertex shader. With a height the sway grows with the square of how far a
+// vertex is above the plant's base (stems stay rooted); with height 0 it is a uniform flutter.
+const windUniform = { value: 0 };
+function addSway(mat, amount, height) {
+  const k = height ? `pow(clamp(transformed.y / ${height.toFixed(2)}, 0.0, 1.0), 2.0)` : '1.0';
+  mat.onBeforeCompile = shader => {
+    shader.uniforms.uTime = windUniform;
+    shader.vertexShader = 'uniform float uTime;\n' + shader.vertexShader.replace('#include <begin_vertex>', `
+      #include <begin_vertex>
+      #ifdef USE_INSTANCING
+        vec2 ip = instanceMatrix[3].xz;
+      #else
+        vec2 ip = vec2(0.0);
+      #endif
+      float gust = 0.55 + 0.45 * sin(uTime * 0.7 + ip.x * 0.006 + ip.y * 0.004);
+      float sw = (sin(uTime * 2.1 + ip.x * 0.07 + ip.y * 0.05) + 0.4 * sin(uTime * 3.7 + ip.x * 0.13)) * gust;
+      transformed.x += sw * ${amount.toFixed(3)} * ${k};
+      transformed.z += sw * ${(amount * 0.5).toFixed(3)} * ${k};`);
+  };
+  mat.customProgramCacheKey = () => `sway-${amount}-${height}`;   // each variant needs its own program
+  return mat;
+}
+const foliage = (opts, amount, height) => addSway(new THREE.MeshStandardMaterial({ side: THREE.DoubleSide, ...opts }), amount, height);
+const grassMat = foliage({ roughness: 0.75 }, 1.4, 1);
+const fernMat = foliage({ roughness: 0.7, vertexColors: true }, 1.0, 14);
+const flowerMat = foliage({ roughness: 0.6, vertexColors: true }, 0.9, 11);
+const lowPlantMat = foliage({ roughness: 0.7, vertexColors: true }, 0.25, 3);
+const shrubLeafMat = foliage({ roughness: 0.65 }, 0.1, 0);
+const barkMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+
+// Flat leaf blade along +x from 0 to 1, raised along a folded midrib, optionally drooping at the tip
+function leafBlade(w = 0.3, fold = 0.12, rows = 6, droop = 0) {
+  const pos = [], idx = [];
+  for (let i = 0; i <= rows; i++) {
+    const t = i / rows, half = w * Math.pow(Math.sin(Math.PI * t), 0.7), y = -droop * t * t;
+    pos.push(t, y, -half, t, y + fold * half, 0, t, y, half);
+  }
+  for (let i = 0; i < rows; i++) {
+    const a = i * 3, b = a + 3;
+    idx.push(a, b, a + 1, a + 1, b, b + 1, a + 1, b + 1, a + 2, a + 2, b + 1, b + 2);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+// Curved, tapering grass blade (unit height, bends forward)
+function grassBladeGeometry() {
+  const pos = [], idx = [], rows = 4;
+  for (let i = 0; i <= rows; i++) {
+    const t = i / rows, half = 0.55 * (1 - t) + 0.03, bend = 0.4 * t * t;
+    pos.push(-half, t, bend, half, t, bend);
+  }
+  for (let i = 0; i < rows; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+const bladeGeo = grassBladeGeometry();
+const shrubLeafGeo = leafBlade(0.36, 0.14, 6, 0.08);
+const SHARED_GEOS = new Set([bladeGeo, leafGeo, pebbleGeo, shrubLeafGeo]);
+
+function rockGeometry(rng) {
+  const g0 = new THREE.IcosahedronGeometry(1, 2);
+  g0.deleteAttribute('uv');
+  g0.deleteAttribute('normal');
+  const g = mergeVertices(g0);
+  const pos = g.attributes.position, v = new THREE.Vector3();
+  const s1 = rng() * 10, s2 = rng() * 10;
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    v.multiplyScalar(1 + 0.16 * Math.sin(v.x * 3 + s1) * Math.sin(v.z * 2.6 + s2) + (rng() - 0.5) * 0.12);
+    if (v.y < -0.2) v.y = -0.2 + (v.y + 0.2) * 0.3;   // flattish base
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  g.computeVertexNormals();
+  // Grey-brown stone with moss on the upward faces
+  const nrm = g.attributes.normal, colors = new Float32Array(pos.count * 3), c = new THREE.Color();
+  const base = new THREE.Color().setHSL(0.08, 0.1 + rng() * 0.1, 0.17 + rng() * 0.09);
+  for (let i = 0; i < pos.count; i++) {
+    c.copy(base).multiplyScalar(0.85 + rng() * 0.3);
+    if (nrm.getY(i) > 0.55) c.lerp(MOSS, Math.min(1, (nrm.getY(i) - 0.55) * 2.5) * (0.4 + rng() * 0.5));
+    colors.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return g;
+}
+
+// A tube along a curve whose radius tapers linearly from r0 to r1
+function taperedTube(points, r0, r1, radial = 6) {
+  const curve = new THREE.CatmullRomCurve3(points);
+  const tubular = points.length * 5;
+  const g = new THREE.TubeGeometry(curve, tubular, 1, radial, false);
+  const pos = g.attributes.position, c = new THREE.Vector3(), v = new THREE.Vector3();
+  for (let i = 0; i <= tubular; i++) {
+    curve.getPointAt(i / tubular, c);
+    const r = r0 + (r1 - r0) * (i / tubular);
+    for (let j = 0; j <= radial; j++) {
+      const idx = i * (radial + 1) + j;
+      v.fromBufferAttribute(pos, idx).sub(c).multiplyScalar(r).add(c);
+      pos.setXYZ(idx, v.x, v.y, v.z);
+    }
+  }
+  g.computeVertexNormals();
+  return { geo: g, curve };
+}
+
+// Fallen twig lying along local +x: kinked, tapering stem with a few forking side shoots
+function twigGeometry(rng) {
+  const len = 30 + rng() * 34, r0 = 0.9 + rng() * 0.7;
+  const parts = [];
+
+  const stem = [], bend = (rng() - 0.5) * len * 0.3, segs = 7;
+  for (let i = 0; i <= segs; i++) {
+    const t = i / segs;
+    stem.push(new THREE.Vector3(
+      t * len - len / 2,
+      r0 * (1 - t * 0.6) + (rng() - 0.5) * 0.3,
+      Math.sin(t * Math.PI) * bend + (i && i < segs ? (rng() - 0.5) * len * 0.07 : 0)));
+  }
+  const main = taperedTube(stem, r0, r0 * 0.18);
+  parts.push(main.geo);
+
+  // Broken-off base: a rounded stump end instead of an open tube
+  const cap = new THREE.SphereGeometry(r0, 7, 5);
+  cap.scale(0.5, 1, 1).translate(stem[0].x, stem[0].y, stem[0].z);
+  parts.push(cap);
+
+  const branches = 1 + (rng() * 3 | 0);
+  for (let b = 0; b < branches; b++) {
+    const t = 0.2 + rng() * 0.55;
+    const base = main.curve.getPointAt(t);
+    const side = rng() < 0.5 ? -1 : 1, ang = side * (0.5 + rng() * 0.6);
+    const bl = len * (0.15 + rng() * 0.25), br = r0 * (1 - t * 0.6) * 0.55;
+    const dir = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang));
+    const kink = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar((rng() - 0.5) * bl * 0.25);
+    const mid = base.clone().addScaledVector(dir, bl * 0.5).add(kink);
+    const tip = base.clone().addScaledVector(dir, bl);
+    mid.y = Math.max(br, base.y * 0.9);
+    tip.y = br * 0.6 + rng() * 0.6;
+    parts.push(taperedTube([base.clone().addScaledVector(dir, -br * 0.5), mid, tip], br, br * 0.2, 5).geo);
+
+    // Occasional tiny shoot off the branch
+    if (rng() < 0.5) {
+      const sa = ang - side * (0.5 + rng() * 0.4);
+      const sdir = new THREE.Vector3(Math.cos(sa), 0, Math.sin(sa));
+      const sl = bl * (0.25 + rng() * 0.2);
+      const send = mid.clone().addScaledVector(sdir, sl);
+      send.y = br * 0.4;
+      parts.push(taperedTube([mid.clone(), mid.clone().lerp(send, 0.5), send], br * 0.5, br * 0.12, 4).geo);
+    }
+  }
+
+  // Small bud nubs along the stem
+  for (let n = 0; n < 3; n++) {
+    const p = main.curve.getPointAt(0.15 + rng() * 0.75);
+    const nub = new THREE.ConeGeometry(r0 * 0.35, r0 * 1.1, 4);
+    nub.rotateZ(-Math.PI / 2 + (rng() - 0.5)).rotateY(rng() * Math.PI * 2).translate(p.x, p.y, p.z);
+    parts.push(nub);
+  }
+
+  const geo = mergeGeometries(parts.map(g => g.index ? g.toNonIndexed() : g));
+  parts.forEach(g => g.dispose());
+  geo.userData.len = len;
+  return geo;
+}
+
+// ============================================================================
+// FOLIAGE GEOMETRY - plants are assembled from leaf blades and tubes, baked into one geometry each
+// ============================================================================
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+const _s = new THREE.Vector3(), _p = new THREE.Vector3();
+const IDENTITY = new THREE.Matrix4();
+function placeMatrix(pos, yaw, pitch, roll, scale) {
+  // Order: roll about the leaf's own axis, tilt the tip up, then turn about vertical
+  return _m4.compose(_p.set(...pos), _q.setFromEuler(_e.set(roll, yaw, pitch, 'YZX')),
+    _s.set(scale, scale, scale)).clone();
+}
+function baked(geo, matrix, color) {
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  g.applyMatrix4(matrix);
+  const c = new Float32Array(g.attributes.position.count * 3);
+  for (let i = 0; i < c.length; i += 3) { c[i] = color.r; c[i + 1] = color.g; c[i + 2] = color.b; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return g;
+}
+function mergeParts(parts) {
+  const g = mergeGeometries(parts);
+  parts.forEach(p => p.dispose());
+  return g;
+}
+// Leaf blade matrix pointing along direction d, rooted at p
+const _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3(), UPV = new THREE.Vector3(0, 1, 0);
+function alongMatrix(p, d, scale) {
+  _x.copy(d).normalize();
+  _z.crossVectors(_x, UPV).normalize();
+  if (_z.lengthSq() < 1e-6) _z.set(0, 0, 1);
+  _y.crossVectors(_z, _x);
+  return new THREE.Matrix4().makeBasis(_x, _y, _z).scale(_s.set(scale, scale, scale)).setPosition(p);
+}
+
+function fernGeometry(rng) {
+  const parts = [], fronds = 6 + (rng() * 4 | 0), leaflet = leafBlade(0.28, 0.1, 4, 0.1);
+  const stalk = new THREE.Color().setHSL(0.2, 0.4, 0.16);
+  for (let f = 0; f < fronds; f++) {
+    const L = 12 + rng() * 9, rise = 0.55 + rng() * 0.35, yaw = f / fronds * Math.PI * 2 + rng() * 0.5;
+    const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(L * 0.3, L * rise * 0.7, 0),
+      new THREE.Vector3(L * 0.65, L * rise * 0.85, 0), new THREE.Vector3(L, L * rise * 0.45, 0)];
+    const curve = new THREE.CatmullRomCurve3(pts), rot = new THREE.Matrix4().makeRotationY(yaw);
+    const green = new THREE.Color().setHSL(0.26 + rng() * 0.06, 0.45 + rng() * 0.2, 0.18 + rng() * 0.08);
+    parts.push(baked(taperedTube(pts, 0.28, 0.06, 4).geo, rot, stalk));
+    const N = 14;
+    for (let i = 1; i <= N; i++) {
+      const t = i / (N + 1), p = curve.getPointAt(t), tan = curve.getTangentAt(t);
+      const size = L * 0.22 * (1 - t * 0.8) * Math.min(1, t / 0.15);
+      for (const side of [-1, 1]) {
+        const d = tan.clone().multiplyScalar(0.5).add(new THREE.Vector3(0, -0.25, side));
+        parts.push(baked(leaflet, rot.clone().multiply(alongMatrix(p, d, size)), green));
+      }
+    }
+  }
+  leaflet.dispose();
+  return mergeParts(parts);
+}
+
+function flowerGeometry(rng, petalColor) {
+  const parts = [], h = 7 + rng() * 6, lean = (rng() - 0.5) * 3;
+  const stemColor = new THREE.Color().setHSL(0.25, 0.4, 0.2), centre = new THREE.Color(0xd9a520);
+  const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(lean * 0.4, h * 0.5, 0), new THREE.Vector3(lean, h, 0)];
+  parts.push(baked(taperedTube(pts, 0.28, 0.2, 4).geo, IDENTITY, stemColor));
+  const stemLeaf = leafBlade(0.25, 0.15, 5, 0.15);
+  for (let i = 0; i < 2; i++)
+    parts.push(baked(stemLeaf, placeMatrix([lean * 0.15, h * (0.2 + i * 0.2), 0], i * Math.PI + rng(), 0.5, 0, 3.5), stemColor));
+  const petal = leafBlade(0.45, 0.06, 4);
+  const petals = 5 + (rng() * 3 | 0);
+  for (let i = 0; i < petals; i++)
+    parts.push(baked(petal, placeMatrix([lean, h, 0], i / petals * Math.PI * 2, 0.35, 0, 2.2), petalColor));
+  const bud = new THREE.SphereGeometry(0.75, 8, 6);
+  bud.scale(1, 0.6, 1);
+  parts.push(baked(bud, new THREE.Matrix4().makeTranslation(lean, h + 0.2, 0), centre));
+  [stemLeaf, petal, bud].forEach(g => g.dispose());
+  return mergeParts(parts);
+}
+
+function cloverGeometry(rng) {
+  const parts = [], green = new THREE.Color().setHSL(0.27, 0.45, 0.24);
+  const leaflet = leafBlade(0.85, 0.08, 5, 0.05);
+  for (let s = 0; s < 4; s++) {   // a few trefoils per tuft
+    const ox = (rng() - 0.5) * 4, oz = (rng() - 0.5) * 4, h = 1.6 + rng() * 1.6;
+    const pts = [new THREE.Vector3(ox, 0, oz), new THREE.Vector3(ox + 0.2, h * 0.6, oz), new THREE.Vector3(ox, h, oz)];
+    parts.push(baked(taperedTube(pts, 0.12, 0.1, 3).geo, IDENTITY, green));
+    const turn = rng() * Math.PI * 2;
+    for (let k = 0; k < 3; k++)
+      parts.push(baked(leaflet, placeMatrix([ox, h, oz], turn + k * Math.PI * 2 / 3, 0.15, 0, 1.5), green));
+  }
+  leaflet.dispose();
+  return mergeParts(parts);
+}
+
+function rosetteGeometry(rng) {
+  const parts = [], leaf = leafBlade(0.38, 0.22, 7, 0.12), n = 6 + (rng() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const c = new THREE.Color().setHSL(0.25 + rng() * 0.04, 0.4 + rng() * 0.15, 0.17 + rng() * 0.06);
+    parts.push(baked(leaf, placeMatrix([0, 0.3, 0], i / n * Math.PI * 2 + rng() * 0.3, 0.25 + rng() * 0.25, 0, 6 + rng() * 3), c));
+  }
+  leaf.dispose();
+  return mergeParts(parts);
+}
+
+// Shrub: a few stems from the base, each forking a few times; returns branch geometry (world space)
+// and the spots where leaves sprout
+function growShrub(s, rng, branchParts, leafSpots) {
+  const base = new THREE.Vector3(wx(s.x), hAt(s.x, s.y) - 0.5, wz(s.y));
+  const bark = new THREE.Color().setHSL(0.07, 0.3 + rng() * 0.15, 0.12 + rng() * 0.06);
+  const grow = (start, dir, len, rad, depth) => {
+    const end = start.clone().addScaledVector(dir, len);
+    const mid = start.clone().lerp(end, 0.5).add(new THREE.Vector3((rng() - 0.5) * len * 0.2, 0, (rng() - 0.5) * len * 0.2));
+    branchParts.push(baked(taperedTube([start, mid, end], rad, rad * 0.65, 5).geo, IDENTITY, bark));
+    if (depth <= 2)
+      for (let k = 0; k < (depth === 0 ? 22 : 6); k++) {
+        const p = depth === 0 ? end.clone() : start.clone().lerp(end, 0.3 + rng() * 0.7);
+        p.add(new THREE.Vector3((rng() - 0.5), (rng() - 0.3), (rng() - 0.5)).multiplyScalar(len * 0.9));
+        leafSpots.push(p);
+      }
+    if (depth === 0) return;
+    const kids = 2 + (rng() * 2 | 0);
+    for (let k = 0; k < kids; k++) {
+      const d = dir.clone().add(new THREE.Vector3((rng() - 0.5) * 1.5, rng() * 0.4, (rng() - 0.5) * 1.5));
+      d.y = Math.max(d.y, 0.25);
+      grow(end, d.normalize(), len * (0.62 + rng() * 0.15), rad * 0.6, depth - 1);
+    }
+  };
+  const stems = 5 + (rng() * 3 | 0);
+  for (let i = 0; i < stems; i++) {
+    const a = i / stems * Math.PI * 2 + rng();
+    const dir = new THREE.Vector3(Math.cos(a) * 0.75, 1, Math.sin(a) * 0.75).normalize();
+    grow(base, dir, 17 * s.size, 1.7 * s.size, 3);
+  }
+}
+
+function buildDecorations(rng) {
+  deco.traverse(o => { if (o.isMesh && !SHARED_GEOS.has(o.geometry)) o.geometry.dispose(); });
+  deco.clear();
+  const dummy = new THREE.Object3D(), col = new THREE.Color();
+  const blocked = (x, y, pad) => obstacles.some(r => Math.hypot(x - r.x, y - r.y) < r.r + pad) ||
+    Math.hypot(x - P.nestX, y - P.nestY) < 50;
+  const scatter = (geo, mat, max, place) => {
+    const m = new THREE.InstancedMesh(geo, mat, max);
+    m.frustumCulled = false;
+    m.castShadow = m.receiveShadow = true;
+    let n = 0;
+    place((color) => {
+      dummy.updateMatrix();
+      m.setMatrixAt(n, dummy.matrix);
+      m.setColorAt(n++, color);
+      return n < max;
+    });
+    m.count = m.userData.full = n;   // full count, thinned by the quality setting
+    deco.add(m);
+    return m;
+  };
+
+  for (const r of rocks) addRockMesh(r, rng);
+
+  // Shrubs: all branches merged into one mesh, all leaves in one instanced mesh
+  const branchParts = [], leafSpots = [];
+  for (const s of shrubs) growShrub(s, rng, branchParts, leafSpots);
+  // Shuffled so thinning leaves (lower quality) removes leaves evenly rather than whole shrubs
+  for (let i = leafSpots.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [leafSpots[i], leafSpots[j]] = [leafSpots[j], leafSpots[i]];
+  }
+  if (branchParts.length) {
+    const branches = new THREE.Mesh(mergeParts(branchParts), barkMat);
+    branches.castShadow = branches.receiveShadow = true;
+    deco.add(branches);
+  }
+  const shrubLeaves = scatter(shrubLeafGeo, shrubLeafMat, leafSpots.length, add => {
+    const hue = 0.22 + rng() * 0.06;
+    for (const p of leafSpots) {
+      dummy.position.copy(p);
+      dummy.rotation.set(rng() * 6.28, rng() * 6.28, (rng() - 0.3) * 1.2);
+      dummy.scale.setScalar(3 + rng() * 2.2);
+      const autumn = rng() < 0.08;
+      add(col.setHSL(autumn ? 0.1 + rng() * 0.04 : hue + rng() * 0.05, 0.4 + rng() * 0.25, autumn ? 0.3 : 0.15 + rng() * 0.12));
+    }
+  });
+  shrubLeaves.receiveShadow = true;
+
+  // Ground plants: a few procedural variants of each, instanced around the map
+  const plant = (geo, mat, count, minScale, maxScale, accept = () => true, pad = 6) =>
+    scatter(geo, mat, count, add => {
+      for (let tries = 0, n = 0; n < count && tries < count * 8; tries++) {
+        const x = 15 + rng() * (W - 30), y = 15 + rng() * (H - 30);
+        if (blocked(x, y, pad) || !accept(x, y)) continue;
+        dummy.position.set(wx(x), hAt(x, y) - 0.2, wz(y));
+        dummy.rotation.set((rng() - 0.5) * 0.15, rng() * 6.28, (rng() - 0.5) * 0.15);
+        dummy.scale.setScalar(minScale + rng() * (maxScale - minScale));
+        add(col.setHSL(0, 0, 0.85 + rng() * 0.3));
+        n++;
+      }
+    });
+  // Ferns like the damp low ground and the shelter of rocks and shrubs
+  const sheltered = (x, y) => hAt(x, y) < 12 || obstacles.some(o => Math.hypot(x - o.x, y - o.y) < o.r + 45) || rng() < 0.15;
+  for (let v = 0; v < 3; v++) plant(fernGeometry(rng), fernMat, 11, 0.8, 1.3, sheltered, 10);
+  for (const c of [0xf4f0e8, 0xf2c933, 0x9a6ee0, 0xe87fa8])
+    plant(flowerGeometry(rng, new THREE.Color(c)), flowerMat, 18, 0.8, 1.2);
+  for (let v = 0; v < 2; v++) plant(rosetteGeometry(rng), lowPlantMat, 22, 0.8, 1.3);
+  // Clover grows in patches
+  const cloverPatches = Array.from({ length: 30 }, () => [30 + rng() * (W - 60), 30 + rng() * (H - 60)]);
+  for (let v = 0; v < 2; v++)
+    scatter(cloverGeometry(rng), lowPlantMat, 220, add => {
+      for (let k = 0; k < 220; k++) {
+        const [px, py] = cloverPatches[k % cloverPatches.length];
+        const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * 22, x = px + Math.cos(a) * d, y = py + Math.sin(a) * d;
+        if (blocked(x, y, 3)) continue;
+        dummy.position.set(wx(x), hAt(x, y) - 0.1, wz(y));
+        dummy.rotation.set(0, rng() * 6.28, 0);
+        dummy.scale.setScalar(0.9 + rng() * 0.4);
+        add(col.setHSL(0, 0, 0.85 + rng() * 0.3));
+      }
+    });
+
+  // Grass clumps
+  scatter(bladeGeo, grassMat, 3400, add => {
+    for (let c = 0; c < 190; c++) {
+      const cx = 20 + rng() * (W - 40), cy = 20 + rng() * (H - 40);
+      if (blocked(cx, cy, 10)) continue;
+      const blades = 8 + (rng() * 14 | 0);
+      for (let k = 0; k < blades; k++) {
+        const x = cx + (rng() - 0.5) * 16, y = cy + (rng() - 0.5) * 16;
+        dummy.position.set(wx(x), hAt(x, y) - 0.3, wz(y));
+        dummy.rotation.set((rng() - 0.5) * 0.8, rng() * 6.28, (rng() - 0.5) * 0.8);
+        dummy.scale.set(1, 5 + rng() * 11, 1);
+        if (!add(col.setHSL(0.16 + rng() * 0.09, 0.3 + rng() * 0.3, 0.17 + rng() * 0.15))) return;
+      }
+    }
+  });
+
+  // Fallen leaves
+  const LEAF = [0x8a4b1e, 0xa0622a, 0x6b3a1a, 0xb5803a, 0x5c4a22].map(c => new THREE.Color(c));
+  scatter(leafGeo, leafMat, 160, add => {
+    for (let k = 0; k < 160; k++) {
+      const x = rng() * W, y = rng() * H;
+      if (blocked(x, y, 4)) continue;
+      dummy.position.set(wx(x), hAt(x, y) + 0.45, wz(y));
+      dummy.rotation.set((rng() - 0.5) * 0.25, rng() * 6.28, (rng() - 0.5) * 0.25);
+      dummy.scale.set(3 + rng() * 3.5, 1, 1.6 + rng() * 1.8);
+      add(col.copy(LEAF[k % LEAF.length]).multiplyScalar(0.8 + rng() * 0.4));
+    }
+  });
+
+  // Twigs: a few procedural shapes, each instanced several times
+  for (let v = 0; v < 6; v++) {
+    const geo = twigGeometry(rng), len = geo.userData.len;
+    scatter(geo, twigMat, 8, add => {
+      for (let k = 0; k < 8; k++) {
+        const x = rng() * W, y = rng() * H, yaw = rng() * Math.PI * 2, s = 0.85 + rng() * 0.3;
+        if (blocked(x, y, len / 2)) continue;
+        // Lie along the slope: pitch from the ground height under each end
+        const dx = Math.cos(yaw) * len * s / 2, dy = -Math.sin(yaw) * len * s / 2;
+        const h0 = hAt(x - dx, y - dy), h1 = hAt(x + dx, y + dy);
+        dummy.position.set(wx(x), (h0 + h1) / 2 - 0.2, wz(y));
+        dummy.rotation.set(0, yaw, Math.atan2(h1 - h0, len * s));
+        dummy.scale.setScalar(s);
+        add(col.setHSL(0.07 + rng() * 0.02, 0.3 + rng() * 0.2, 0.13 + rng() * 0.09));
+      }
+    });
+  }
+
+  // Pebbles
+  scatter(pebbleGeo, pebbleMat, 500, add => {
+    for (let k = 0; k < 500; k++) {
+      const x = rng() * W, y = rng() * H, s = 0.8 + rng() ** 2 * 3;
+      if (blocked(x, y, 2)) continue;
+      dummy.position.set(wx(x), hAt(x, y) + s * 0.3, wz(y));
+      dummy.rotation.set(rng() * 6, rng() * 6, rng() * 6);
+      dummy.scale.set(s, s * 0.7, s);
+      add(col.setHSL(0.08, 0.1 + rng() * 0.1, 0.25 + rng() * 0.2));
+    }
+  });
+}
+
+function addRockMesh(r, rng) {
+  const m = new THREE.Mesh(rockGeometry(rng), rockMat);
+  // Mix of rounded rocks and flat slabs
+  const squash = rng() < 0.3 ? 0.28 + rng() * 0.15 : 0.5 + rng() * 0.35;
+  m.scale.set(r.r, r.r * squash, r.r * (0.8 + rng() * 0.2));
+  m.rotation.set((rng() - 0.5) * 0.25, rng() * Math.PI * 2, (rng() - 0.5) * 0.25);
+  m.position.set(wx(r.x), hAt(r.x, r.y) - r.r * 0.15, wz(r.y));
+  m.castShadow = m.receiveShadow = true;
+  deco.add(m);
+}
+
+function buildWorld(seed) {
+  const rng = generateTerrain(seed);
+  updateTerrainMeshes();
+  buildDecorations(rng);
+  placeFireflies(rng);
+  placePuddles();
+  applyQuality();
+  if (FX.cutaway) buildPit();
+  cutDirty = true;
+}
+
+// ============================================================================
+// INSTANCED ANTS AND FOOD
+// ============================================================================
+const sphereGeo = new THREE.SphereGeometry(1, 14, 10);
+const limbGeo = new THREE.CylinderGeometry(1, 1, 1, 5).translate(0, 0.5, 0);
+const limbMat = new THREE.MeshStandardMaterial({ color: 0x3a2418, roughness: 0.6 });
+const antMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.42, metalness: 0.05,
+  clearcoat: 0.8, clearcoatRoughness: 0.3 });
+const antLimbMat = new THREE.MeshPhysicalMaterial({ roughness: 0.5, clearcoat: 0.5, clearcoatRoughness: 0.4 });
+
+// ---- Ant anatomy, in local units (+x forward, y up) before scaling by S ----
+function toned(geo, matrix, k) {
+  // Bake a transform and a brightness into vertex colours (keeping any existing colours)
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  g.applyMatrix4(matrix);
+  const n = g.attributes.position.count * 3, old = g.attributes.color, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) c[i] = (old ? old.array[i] : 1) * k;
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return g;
+}
+
+const GASTER_AT = [-4.1, 2.5, 0];
+function gasterGeometry() {
+  // Teardrop lathed around its long axis, rear rounded, tapering to the waist; dark bands mark segments
+  const prof = [];
+  for (let i = 0; i <= 18; i++) {
+    const t = i / 18;
+    const r = 1.95 * Math.pow(Math.sin(Math.PI * t * 0.92), 0.6) * (1 - 0.3 * t);
+    prof.push(new THREE.Vector2(Math.max(r, 0.04), -2.3 + t * 4.6));
+  }
+  const g = new THREE.LatheGeometry(prof, 22);
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    let k = 1;
+    for (const b of [-1.0, 0.0, 0.95]) k -= 0.35 * Math.exp(-((pos.getY(i) - b) ** 2) / 0.04);
+    col.set([k, k, k], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.rotateZ(-Math.PI / 2);   // lathe axis -> +x, front of the gaster forward
+  g.scale(1, 0.88, 1);
+  g.rotateZ(-0.18);          // rear tilted up
+  return g;
+}
+
+function antFrontParts(soldier = false) {
+  const sph = new THREE.SphereGeometry(1, 16, 12);
+  const M = (x, y, z, sx, sy, sz, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, rz)), new THREE.Vector3(sx, sy, sz));
+  const parts = [
+    toned(sph, M(-1.6, 2.4, 0, 0.5, 0.8, 0.5), 0.8),             // petiole node
+    toned(sph, M(-1.15, 2.25, 0, 0.55, 0.3, 0.3), 0.75),         // waist
+    toned(sph, M(-0.65, 2.45, 0, 0.85, 0.75, 0.75), 0.85),       // propodeum
+    toned(sph, M(0.25, 2.55, 0, 1.25, 0.8, 0.8, 0.12), 0.85),    // mesonotum
+    toned(sph, M(1.15, 2.75, 0, 0.9, 0.95, 0.92), 0.85),         // pronotum hump
+    toned(sph, M(1.95, 2.75, 0, 0.45, 0.45, 0.45), 0.7),         // neck
+    toned(sph, M(3.0, 2.9, 0, 1.45, 1.22, 1.4, -0.15), 0.8),     // head
+    toned(sph, M(3.35, 3.2, 1.2, 0.42, 0.5, 0.33), 0.05),        // compound eyes
+    toned(sph, M(3.35, 3.2, -1.2, 0.42, 0.5, 0.33), 0.05),
+  ];
+  for (const side of [-1, 1]) {                                  // curved mandibles
+    const { geo } = taperedTube([new THREE.Vector3(4.1, 2.45, side * 0.75),
+      new THREE.Vector3(4.9, 2.35, side * 0.7), new THREE.Vector3(5.35, 2.25, side * 0.15)], 0.32, 0.1, 5);
+    parts.push(toned(geo, IDENTITY, 0.35));
+    geo.dispose();
+  }
+  sph.dispose();
+  if (soldier) {
+    // Soldiers: the head, eyes and jaws scaled up about the neck
+    const neck = new THREE.Vector3(1.95, 2.75, 0);
+    const grow = new THREE.Matrix4().makeTranslation(neck.x, neck.y, 0)
+      .multiply(new THREE.Matrix4().makeScale(1.4, 1.35, 1.4)).multiply(new THREE.Matrix4().makeTranslation(-neck.x, -neck.y, 0));
+    for (let i = 6; i < parts.length; i++) parts[i].applyMatrix4(grow);
+  }
+  return parts;
+}
+
+function instanced(geo, mat, count) {
+  const m = new THREE.InstancedMesh(geo, mat, count);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  m.frustumCulled = false;
+  m.castShadow = true;
+  m.count = 0;
+  scene.add(m);
+  return m;
+}
+const gasterGeo = gasterGeometry();
+const gasterPart = () => toned(gasterGeo, new THREE.Matrix4().makeTranslation(...GASTER_AT), 1);
+const workerGeo = mergeParts([...antFrontParts(), gasterPart()]);
+const soldierGeo = mergeParts([...antFrontParts(true), gasterPart()]);
+const antLegGeo = new THREE.CylinderGeometry(0.75, 1, 1, 6).translate(0, 0.5, 0);
+const antJointGeo = new THREE.SphereGeometry(1, 8, 6);
+const crumbGeo = new THREE.IcosahedronGeometry(1, 0);
+const crumbMat = new THREE.MeshStandardMaterial({ color: 0x96e150, emissive: 0x2a5010, roughness: 0.5, flatShading: true });
+const LIMBS_PER_ANT = 22, JOINTS_PER_ANT = 14;
+const ANT_SOLDIER = new THREE.Color(0x8a3020), ANT_NURSE = new THREE.Color(0xd9925e);
+
+const pelletMesh = instanced(new THREE.IcosahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ roughness: 0.55, flatShading: true, emissive: 0x0d1f06 }), PELLETS * 14);
+pelletMesh.setColorAt(0, FOOD_COLORS[0]);
+
+const dummy = new THREE.Object3D();
+const UP = new THREE.Vector3(0, 1, 0), _v = new THREE.Vector3();
+const A = [0, 0, 0], B = [0, 0, 0], C = [0, 0, 0], D = [0, 0, 0];
+
+function setSegment(o, a, b, t) {
+  _v.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const len = _v.length() || 1e-3;
+  o.position.set(a[0], a[1], a[2]);
+  o.quaternion.setFromUnitVectors(UP, _v.divideScalar(len));
+  o.scale.set(t, len, t);
+}
+
+// Leg layout per pair (front, middle, hind): swing angle, hip position along the body, reach
+const LEG_FWD = [0.75, 0.05, -0.75], LEG_HIP_X = [1.05, 0.25, -0.55], LEG_REACH = [1.0, 1.0, 1.18];
+const _limbCol = new THREE.Color();
+
+// Instanced meshes for a batch of ants. Each ant is placed by a body matrix plus a point mapper
+// (local ant coords -> world), so the same rig serves ants on the terrain and in the tunnels.
+class AntRenderer {
+  constructor(clipped) {
+    const [body, limb, crumb] = clipped ? [antMat, antLimbMat, crumbMat] : [antMat.clone(), antLimbMat.clone(), crumbMat.clone()];
+    this.workers = instanced(workerGeo, body, MAX_ANTS);
+    this.soldiers = instanced(soldierGeo, body, MAX_ANTS);
+    this.limbs = instanced(antLegGeo, limb, MAX_ANTS * LIMBS_PER_ANT);
+    this.joints = instanced(antJointGeo, limb, MAX_ANTS * JOINTS_PER_ANT);
+    this.crumbs = instanced(crumbGeo, crumb, MAX_ANTS);
+    this.meshes = [this.workers, this.soldiers, this.limbs, this.joints, this.crumbs];
+    for (const m of this.meshes) m.userData.noClip = !clipped;
+    for (const m of [this.workers, this.soldiers, this.limbs, this.joints]) m.setColorAt(0, ANT_SEARCH);
+  }
+  begin() { this.nw = this.ns = this.nl = this.nj = this.nc = 0; }
+  seg(a, b, t) {
+    setSegment(dummy, a, b, t * this.sc);
+    dummy.updateMatrix();
+    this.limbs.setMatrixAt(this.nl, dummy.matrix);
+    this.limbs.setColorAt(this.nl++, _limbCol);
+  }
+  joint(p, r) {
+    dummy.position.set(p[0], p[1], p[2]);
+    dummy.quaternion.identity();
+    dummy.scale.setScalar(r * this.sc);
+    dummy.updateMatrix();
+    this.joints.setMatrixAt(this.nj, dummy.matrix);
+    this.joints.setColorAt(this.nj++, _limbCol);
+  }
+  add(ant, bodyMatrix, pt, sc, col, soldier) {
+    if (this.nw >= MAX_ANTS || this.ns >= MAX_ANTS) return;
+    this.sc = sc;
+    if (soldier) { this.soldiers.setMatrixAt(this.ns, bodyMatrix); this.soldiers.setColorAt(this.ns++, col); }
+    else { this.workers.setMatrixAt(this.nw, bodyMatrix); this.workers.setColorAt(this.nw++, col); }
+    _limbCol.copy(col).multiplyScalar(0.6);
+
+    // Six three-part legs (femur, tibia, tarsus) in a tripod gait; swinging feet lift clear
+    const swing = Math.sin(ant.gait) * 0.3, lift = Math.cos(ant.gait);
+    for (const side of [-1, 1])
+      for (let k = 0; k < 3; k++) {
+        const group = (k % 2 === 0) === (side > 0) ? 1 : -1;
+        const phi = side * (Math.PI / 2 - LEG_FWD[k] - swing * group);
+        const lc = Math.cos(phi), ls = Math.sin(phi), reach = LEG_REACH[k];
+        const footY = Math.max(0, lift * group) * 1.1;
+        const hx = LEG_HIP_X[k], hz = side * 0.6;
+        pt(A, hx, 2.2, hz);
+        pt(B, hx + lc * 2.4 * reach, 3.8, hz + ls * 2.4 * reach);
+        pt(C, hx + lc * 4.6 * reach, 0.9 + footY, hz + ls * 4.6 * reach);
+        pt(D, hx + lc * 5.7 * reach + Math.sign(LEG_FWD[k]) * 0.6, footY, hz + ls * 5.7 * reach);
+        this.seg(A, B, 0.36); this.seg(B, C, 0.26); this.seg(C, D, 0.16);
+        this.joint(B, 0.36); this.joint(C, 0.25);
+      }
+
+    // Elbowed antennae (scape up and out, funiculus forward), twitching as it walks
+    for (const side of [-1, 1]) {
+      const w = Math.sin(ant.age * 0.2 + side * 2) * 0.35;
+      pt(A, 3.9, 3.35, side * 0.55);
+      pt(B, 4.3, 5.0, side * 1.4);
+      pt(C, 6.9, 4.0 + w, side * (2.0 + w * 0.5));
+      this.seg(A, B, 0.17); this.seg(B, C, 0.14);
+      this.joint(C, 0.24);
+    }
+
+    if (ant.food) {
+      pt(A, 6.2, 2.3, 0);
+      dummy.position.set(A[0], A[1], A[2]);
+      dummy.rotation.set(ant.gait * 0.1, -ant.a, 0.4);
+      dummy.scale.setScalar(1.15 * sc);
+      dummy.updateMatrix();
+      this.crumbs.setMatrixAt(this.nc++, dummy.matrix);
+    }
+  }
+  end() {
+    this.workers.count = this.nw;
+    this.soldiers.count = this.ns;
+    this.limbs.count = this.nl;
+    this.joints.count = this.nj;
+    this.crumbs.count = this.nc;
+    for (const m of this.meshes) {
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    }
+  }
+}
+const surfaceAnts = new AntRenderer(true), nurseAnts = new AntRenderer(false);
+
+// Ants are scaled up when the camera is far away so they stay readable from the overview
+let VS = S;
+
+// Local ant coords: +x = forward, y = up, z = right; mapped to world at the ant's heading
+// and lifted onto the terrain at that point
+function antPoint(out, ant, c, s, lx, ly, lz) {
+  const sx = ant.x + VS * (lx * c - lz * s), sy = ant.y + VS * (lx * s + lz * c);
+  out[0] = wx(sx);
+  out[1] = VS * ly + hAt(sx, sy);
+  out[2] = wz(sy);
+  return out;
+}
+
+function drawAnts() {
+  VS = S * (FX.antBoost ? THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) / 450, 1, 2.0) : 1);
+  surfaceAnts.begin();
+  for (const ant of ants) {
+    if (ant.inside) continue;
+    const c = Math.cos(ant.a), s = Math.sin(ant.a);
+    // Body: one rigid mesh, tilted to the slope it's walking on
+    const pitch = Math.atan2(hAt(ant.x + c * 5, ant.y + s * 5) - hAt(ant.x - c * 5, ant.y - s * 5), 10);
+    antPoint(A, ant, c, s, 0, 0, 0);
+    dummy.position.set(A[0], A[1], A[2]);
+    dummy.rotation.set(0, -ant.a, pitch);
+    dummy.scale.setScalar(VS);
+    dummy.updateMatrix();
+    const soldier = ant.caste === 'soldier';
+    const col = soldier ? ANT_SOLDIER : ant.food || ant.prey ? ANT_CARRY : ANT_SEARCH;
+    surfaceAnts.add(ant, dummy.matrix, (out, lx, ly, lz) => antPoint(out, ant, c, s, lx, ly, lz), VS, col, soldier);
+  }
+  surfaceAnts.end();
+}
+
+// Nurses walk the tunnels in the cutaway; placed by a matrix in the nest's wall plane
+const PIT_Z = 6, NURSE_SCALE = 1.25;
+const _nm = new THREE.Matrix4(), _nv = new THREE.Vector3(), _nq = new THREE.Quaternion(), _ne = new THREE.Euler(), _ns = new THREE.Vector3();
+const nursePoint = (out, lx, ly, lz) => {
+  _nv.set(lx, ly, lz).applyMatrix4(_nm);
+  out[0] = _nv.x; out[1] = _nv.y; out[2] = _nv.z;
+  return out;
+};
+function drawNurses() {
+  nurseAnts.begin();
+  if (FX.cutaway)
+    for (const n of nurses) {
+      const yaw = n.dx >= 0 ? 0 : Math.PI, pitch = Math.atan2(n.dy, Math.abs(n.dx) || 1e-3);
+      _nm.compose(_nv.set(n.x, n.y, PIT_Z), _nq.setFromEuler(_ne.set(0, yaw, pitch)), _ns.setScalar(NURSE_SCALE))
+        .premultiply(nest.matrixWorld);
+      nurseAnts.add(n, _nm, nursePoint, NURSE_SCALE, ANT_NURSE, false);
+    }
+  nurseAnts.end();
+}
+
+// Food piles: each source gets its own glow and count label, created on demand
+function foodView(f) {
+  if (f.view) return f.view;
+  const glow = glowPlane(0x4cc22e, f.main ? 0.55 : 0.4);
+  scene.add(glow);
+  const label = document.createElement('div');
+  label.className = 'label';
+  view.appendChild(label);
+  return (f.view = { glow, label });
+}
+function disposeFoodView(f) {
+  if (!f.view) return;
+  scene.remove(f.view.glow);
+  f.view.glow.material.dispose();
+  f.view.label.remove();
+  f.view = null;
+}
+function drawFood() {
+  let n = 0;
+  const cap = pelletMesh.instanceMatrix.count;
+  for (const f of foods) {
+    const v = foodView(f);
+    v.glow.visible = f.pieces > 0 && FX.foodGlow;
+    if (f.pieces <= 0) continue;
+    v.glow.position.set(wx(f.x), hAt(f.x, f.y) + 0.6, wz(f.y));
+    v.glow.scale.setScalar(f.size * 3.6);
+    const visible = Math.max(1, Math.ceil(f.pieces / f.max * f.pellets.length));
+    for (let k = 0; k < visible && n < cap; k++) {
+      const p = f.pellets[k];
+      const dome = (1 - p.d / (f.size * 0.85)) * f.size * 0.28;
+      dummy.position.set(wx(f.x + p.ox), p.r * 0.9 + dome + hAt(f.x + p.ox, f.y + p.oy), wz(f.y + p.oy));
+      dummy.rotation.set(p.rx, p.ry, 0);
+      dummy.scale.setScalar(p.r * 1.25);
+      dummy.updateMatrix();
+      pelletMesh.setMatrixAt(n, dummy.matrix);
+      pelletMesh.setColorAt(n++, p.c);
+    }
+  }
+  pelletMesh.count = n;
+  pelletMesh.instanceMatrix.needsUpdate = true;
+  if (pelletMesh.instanceColor) pelletMesh.instanceColor.needsUpdate = true;
+}
+
+// ============================================================================
+// QUEEN AND BROOD
+// ============================================================================
+// Queen and brood are children of the nest so they move with it (coords local to the mound)
+const NURSERY = [22, 2];                // Brood pile sits on the mound beside the entrance
+const BROOD_SHOWN = 60;
+const broodMesh = new THREE.InstancedMesh(sphereGeo, new THREE.MeshStandardMaterial({ roughness: 0.3 }), MAX_ANTS);
+broodMesh.frustumCulled = false;
+broodMesh.castShadow = true;
+broodMesh.count = 0;
+broodMesh.setColorAt(0, new THREE.Color());
+nest.add(broodMesh);
+const BROOD_COLORS = [new THREE.Color(0xf6f2e6), new THREE.Color(0xefdcb8), new THREE.Color(0xc99a5c)];
+const STARVING = new THREE.Color(0x7d766a), _bc = new THREE.Color();
+
+broodMesh.userData.noClip = true;
+const NURSERY_ROOMS = [TUNNEL_NODES[2], TUNNEL_NODES[4]];
+
+function drawBrood() {
+  let n = 0;
+  for (const b of brood) {
+    let x, y, z;
+    if (FX.cutaway) {
+      // Underground: brood is stacked in rows along the two nursery chamber floors
+      const room = NURSERY_ROOMS[b.slot % 2], idx = b.slot >> 1, row = Math.floor(idx / 8);
+      if (row > 3) continue;
+      x = room.x + ((idx % 8) - 3.5) * 2.9 * (1 - row * 0.12);
+      y = roomFloor(room) + 0.8 + row * 1.9;
+      z = PIT_Z - 1 + (row % 2) * 1.5;
+    } else {
+      if (b.slot >= BROOD_SHOWN) continue;
+      // Golden-angle spiral keeps each grub in its own spot on the mound
+      const ang = b.slot * 2.39996, rad = 1.9 * Math.sqrt(b.slot + 0.5);
+      x = NURSERY[0] + Math.cos(ang) * rad; z = NURSERY[1] + Math.sin(ang) * rad;
+      y = moundY(x, z);
+    }
+    let sx, sy, sz, wiggle = 0;
+    if (b.stage === EGG) { sx = 1.0; sy = 0.75; sz = 0.75; }
+    else if (b.stage === LARVA) {
+      const g = 1 + Math.min(1, (b.age / P.broodTime - LARVA_AT) / (PUPA_AT - LARVA_AT)) * 0.9;
+      sx = 1.6 * g; sy = 0.95 * g; sz = 1.05 * g;
+      wiggle = Math.sin(frame * 0.08 + b.slot) * 0.3;
+    } else { sx = 2.9; sy = 1.35; sz = 1.45; }
+    dummy.position.set(x, y + sy * 0.8, z);
+    dummy.rotation.set(0, (FX.cutaway ? 0 : b.slot * 1.7) + wiggle, 0);
+    dummy.scale.set(sx, sy, sz);
+    dummy.updateMatrix();
+    broodMesh.setMatrixAt(n, dummy.matrix);
+    _bc.copy(BROOD_COLORS[b.stage]);
+    if (b.starving) _bc.lerp(STARVING, Math.min(1, b.starving / STARVE_LIMIT));
+    broodMesh.setColorAt(n++, _bc);
+  }
+  broodMesh.count = n;
+  broodMesh.instanceMatrix.needsUpdate = true;
+  if (broodMesh.instanceColor) broodMesh.instanceColor.needsUpdate = true;
+}
+
+const queen = new THREE.Group();
+const queenParts = {};
+{
+  // Same anatomy as the workers, with a swollen (physogastric) gaster that pulses as she lays
+  const mat = new THREE.MeshPhysicalMaterial({ vertexColors: true, color: 0x9a3a22, roughness: 0.35,
+    clearcoat: 0.9, clearcoatRoughness: 0.25 });
+  const legMat = new THREE.MeshPhysicalMaterial({ color: 0x4a1e12, roughness: 0.5, clearcoat: 0.5 });
+  const front = new THREE.Mesh(mergeParts(antFrontParts()), mat);
+  const gaster = new THREE.Mesh(gasterGeo, mat);
+  gaster.position.set(-5.5, 3.1, 0);
+  gaster.scale.setScalar(1.6);
+  front.castShadow = gaster.castShadow = true;
+  queen.add(front, gaster);
+  queenParts.abdomen = gaster;
+  const seg = (a, b, t) => {
+    const m = new THREE.Mesh(limbGeo, legMat);
+    setSegment(m, a, b, t);
+    m.castShadow = true;
+    queen.add(m);
+  };
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < 3; k++) {
+      const phi = side * (Math.PI / 2 - LEG_FWD[k]), c = Math.cos(phi), s = Math.sin(phi), reach = LEG_REACH[k];
+      const hx = LEG_HIP_X[k], hz = side * 0.6;
+      const hip = [hx, 2.2, hz], knee = [hx + c * 2.4 * reach, 3.8, hz + s * 2.4 * reach];
+      const ankle = [hx + c * 4.6 * reach, 0.9, hz + s * 4.6 * reach];
+      const foot = [hx + c * 5.7 * reach + Math.sign(LEG_FWD[k]) * 0.6, 0, hz + s * 5.7 * reach];
+      seg(hip, knee, 0.36); seg(knee, ankle, 0.26); seg(ankle, foot, 0.16);
+    }
+    seg([3.9, 3.35, side * 0.55], [4.3, 5.0, side * 1.4], 0.17);
+    seg([4.3, 5.0, side * 1.4], [6.9, 4.2, side * 2.0], 0.14);
+  }
+  queen.traverse(o => { o.userData.noClip = true; });
+  nest.add(queen);
+}
+
+function animateQueen(now) {
+  queenPulse *= 0.95;
+  const k = 1 + queenPulse * 0.14;
+  queenParts.abdomen.scale.setScalar(1.6 * k);
+  if (FX.cutaway) {
+    // In her chamber, side-on to the cut
+    const room = TUNNEL_NODES[6];
+    queen.scale.setScalar(1.25);
+    queen.position.set(room.x + 2, roomFloor(room) + 0.4, PIT_Z);
+    queen.rotation.y = Math.sin(now * 0.0005) * 0.12;
+  } else {
+    queen.scale.setScalar(1.9);
+    queen.position.set(-14, moundY(-14, -3) - 0.4, -3);
+    queen.rotation.y = 0.15 + Math.sin(now * 0.0005) * 0.3;   // head towards the entrance
+  }
+}
+
+// ---- Spider: a hunting spider, local units (+x forward, y up) ----
+const SP_DARK = new THREE.Color(0x3b2b20), SP_MID = new THREE.Color(0x5e4532), SP_LIGHT = new THREE.Color(0xa6845c);
+const spiderBodyMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6,
+  sheen: 1, sheenColor: new THREE.Color(0x9a7a55), sheenRoughness: 0.7 });
+const spiderLegMat = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6,
+  sheen: 1, sheenColor: new THREE.Color(0x8a6a4a), sheenRoughness: 0.8 });
+
+// Sphere whose vertex colours come from a pattern function of the unit-sphere coordinates
+function patternedSphere(matrix, pattern) {
+  const g = new THREE.SphereGeometry(1, 28, 20).toNonIndexed();
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    pattern(c, pos.getX(i), pos.getY(i), pos.getZ(i));
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g.applyMatrix4(matrix);
+}
+const grain = (x, y, z) => (Math.sin(x * 41.3 + y * 17.1) * Math.sin(z * 29.7 - y * 13.3) + 1) * 0.5;
+function abdomenPattern(c, x, y, z) {
+  c.copy(SP_DARK).lerp(SP_MID, grain(x, y, z) * 0.6);
+  if (y > 0.15) {
+    // Chevrons down the back, plus the pale heart mark at the front
+    const t = (1 - x) * 3.2 + Math.abs(z) * 1.8;
+    if ((t % 1) < 0.28 && Math.abs(z) < 0.75 && x < 0.55) c.lerp(SP_LIGHT, 0.85);
+    if (x > 0.3 && Math.abs(z) < 0.2) c.lerp(SP_LIGHT, 0.7);
+  }
+  if (y < -0.3) c.multiplyScalar(0.7);
+}
+function prosomaPattern(c, x, y, z) {
+  // Radial grooves, a pale median stripe, darker underside
+  c.copy(SP_MID).multiplyScalar(0.8 + 0.2 * Math.cos(Math.atan2(z, x) * 8));
+  if (y > 0 && Math.abs(z) < 0.22) c.lerp(SP_LIGHT, 0.75);
+  if (y < -0.2) c.multiplyScalar(0.6);
+}
+
+function spiderBodyGeometry() {
+  const M = (x, y, z, sx, sy, sz, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, rz)), new THREE.Vector3(sx, sy, sz));
+  const parts = [
+    patternedSphere(M(-9.5, 7.2, 0, 8.2, 6.0, 6.6, -0.12), abdomenPattern),
+    patternedSphere(M(0, 5.6, 0, 5.2, 2.8, 4.5), prosomaPattern),
+    patternedSphere(M(-3.9, 6.0, 0, 1.5, 1.2, 1.2), (c) => c.copy(SP_DARK)),             // pedicel
+  ];
+  for (const side of [-1, 1]) {
+    parts.push(patternedSphere(M(4.7, 4.3, side * 1.1, 1.3, 2.0, 1.1, -0.5), (c, x, y) =>   // chelicerae
+      c.copy(SP_DARK).lerp(SP_MID, Math.max(0, y) * 0.5)));
+    const fang = taperedTube([new THREE.Vector3(5.4, 2.7, side * 1.1), new THREE.Vector3(5.5, 1.9, side * 0.8),
+      new THREE.Vector3(5.0, 1.4, side * 0.35)], 0.35, 0.06, 5).geo;
+    parts.push(toned(fang, IDENTITY, 0.08));
+    fang.dispose();
+    const spinneret = new THREE.ConeGeometry(0.45, 1.6, 6).rotateZ(Math.PI / 2).translate(-17.6, 6.0, side * 0.5);
+    parts.push(toned(spinneret, IDENTITY, 0.3));
+    spinneret.dispose();
+  }
+  // Every part gets the same colour basis; mergeParts needs matching attributes
+  for (const p of parts) if (!p.attributes.uv) p.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(p.attributes.position.count * 2), 2));
+  return mergeParts(parts);
+}
+
+function spiderEyesGeometry() {
+  // Hunting-spider eye layout: two big forward-facing, two big on top, four small at the sides
+  const parts = [];
+  for (const side of [-1, 1])
+    for (const [x, y, z, r] of [[5.0, 6.6, 0.9, 0.75], [4.7, 6.3, 2.0, 0.45], [3.8, 7.7, 1.3, 0.8], [2.6, 7.3, 2.4, 0.6]]) {
+      const e = new THREE.SphereGeometry(r, 12, 8).translate(x, y, side * z);
+      parts.push(e);
+    }
+  return mergeGeometries(parts);
+}
+
+// Leg segment with pale joint bands near its base, dark otherwise
+function bandedLimbGeometry() {
+  const g = new THREE.CylinderGeometry(0.72, 1, 1, 7, 6).translate(0, 0.5, 0);
+  const pos = g.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    c.copy(SP_DARK).lerp(SP_MID, y > 0.4 && y < 0.8 ? 0.6 : 0);
+    if (y < 0.17) c.copy(SP_LIGHT);
+    col.set([c.r, c.g, c.b], i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+
+const spiderBodyGeo = spiderBodyGeometry(), spiderEyesGeo = spiderEyesGeometry(), spiderLimbGeo = bandedLimbGeometry();
+const spiderJointGeo = new THREE.SphereGeometry(1, 8, 6);
+
+function makeSpiderView() {
+  const group = new THREE.Group();
+  const mesh = (geo, mat) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = true;
+    group.add(m);
+    return m;
+  };
+  mesh(spiderBodyGeo, spiderBodyMat);
+  const eyeMat = new THREE.MeshPhysicalMaterial({ color: 0x120808, roughness: 0.05, clearcoat: 1,
+    emissive: 0xff2a1e, emissiveIntensity: 2.5 });
+  mesh(spiderEyesGeo, eyeMat);
+  // 8 legs x 3 segments (femur, tibia, metatarsus+tarsus) with knee and ankle knobs; 2 pedipalps x 2
+  const legs = [], knobs = [], palps = [];
+  for (let i = 0; i < 8; i++) {
+    legs.push([0, 1, 2].map(() => mesh(spiderLimbGeo, spiderLegMat)));
+    knobs.push([0, 1].map(() => mesh(spiderJointGeo, spiderLegMat)));
+  }
+  for (let i = 0; i < 2; i++) palps.push([0, 1].map(() => mesh(spiderLimbGeo, spiderLegMat)));
+  const glow = glowPlane(0xff2a1a, 0);
+  glow.scale.setScalar(110);
+  glow.position.y = 0.4;
+  group.add(glow);
+  group.scale.setScalar(1.5);
+  scene.add(group);
+  const hp = document.createElement('div');
+  hp.className = 'hpbar';
+  hp.innerHTML = '<i></i>';
+  view.appendChild(hp);
+  return { group, legs, knobs, palps, eyeMat, glow, hp };
+}
+
+// Per leg pair (front to back): swing angle, reach
+const SPIDER_FWD = [1.1, 0.4, -0.3, -1.0], SPIDER_REACH = [1.15, 1.0, 0.95, 1.1];
+function drawSpider(sp) {
+  const v = sp.view, digesting = sp.timer > 0;
+  v.group.position.set(wx(sp.x), hAt(sp.x, sp.y), wz(sp.y));
+  v.group.rotation.y = -sp.a;
+  v.eyeMat.emissiveIntensity = FX.spiderGlow ? (digesting ? 0.4 : 2.5) : 0;
+  v.glow.visible = FX.spiderGlow;
+  v.glow.material.opacity += ((sp.hunting && !digesting ? 0.5 : 0) - v.glow.material.opacity) * 0.1;
+
+  // Alternating tetrapod gait: legs 1 & 3 on one side step with 2 & 4 on the other
+  const swing = Math.sin(sp.gait) * 0.22, lift = Math.cos(sp.gait);
+  let i = 0;
+  for (const side of [-1, 1])
+    for (let k = 0; k < 4; k++, i++) {
+      const group = (k % 2 === 0) === (side > 0) ? 1 : -1;
+      const phi = side * (Math.PI / 2 - SPIDER_FWD[k] - swing * group);
+      const c = Math.cos(phi), s = Math.sin(phi), reach = SPIDER_REACH[k];
+      const footY = Math.max(0, lift * group) * 2.5;
+      const hip = [c * 3.4, 5.4, s * 3.0];
+      const knee = [c * 9 * reach, 13.5, s * 9 * reach];
+      const ankle = [c * 16 * reach, 6.5 + footY * 0.6, s * 16 * reach];
+      const foot = [c * 21 * reach, footY, s * 21 * reach];
+      const [femur, tibia, tarsus] = v.legs[i], [kneeKnob, ankleKnob] = v.knobs[i];
+      setSegment(femur, hip, knee, 0.85);
+      setSegment(tibia, knee, ankle, 0.65);
+      setSegment(tarsus, ankle, foot, 0.42);
+      kneeKnob.position.set(...knee); kneeKnob.scale.setScalar(0.72);
+      ankleKnob.position.set(...ankle); ankleKnob.scale.setScalar(0.52);
+    }
+  // Pedipalps feel the ground ahead
+  const twitch = Math.sin(sp.gait * 1.7) * 0.6;
+  v.palps.forEach(([upper, lower], j) => {
+    const side = j ? 1 : -1;
+    const base = [4.6, 4.8, side * 1.7], mid = [6.8, 6.4, side * 2.8], tip = [8.6, 2.6 + twitch * side, side * 2.5];
+    setSegment(upper, base, mid, 0.55);
+    setSegment(lower, mid, tip, 0.48);
+  });
+}
+
+// ============================================================================
+// RIPPLES
+// ============================================================================
+const ringGeo = new THREE.RingGeometry(0.86, 1, 64).rotateX(-Math.PI / 2);
+let ripples = [];
+function ripple(x, y, color, maxR, life) {
+  if (!FX.ripples) return;
+  const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true,
+    blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+  m.position.set(wx(x), hAt(x, y) + 1.5, wz(y));
+  m.renderOrder = 3;
+  scene.add(m);
+  ripples.push({ m, maxR, life, age: 0 });
+}
+function updateRipples() {
+  ripples = ripples.filter(r => {
+    r.age++;
+    const t = r.age / r.life;
+    if (t >= 1) { scene.remove(r.m); r.m.material.dispose(); return false; }
+    r.m.scale.setScalar(2 + r.maxR * (1 - (1 - t) ** 2));
+    r.m.material.opacity = 1 - t;
+    return true;
+  });
+}
+
+// ============================================================================
+// QUALITY
+// ============================================================================
+const QUALITY = {
+  low:    { pixelRatio: 1,   shadows: 0,    foliage: 0.3, bloom: false, joints: false },
+  medium: { pixelRatio: 1.5, shadows: 1024, foliage: 0.6, bloom: true,  joints: true },
+  high:   { pixelRatio: 2,   shadows: 2048, foliage: 1.0, bloom: true,  joints: true },
+};
+const quality = () => QUALITY[FX.quality] || QUALITY.high;
+function applyQuality() {
+  const q = quality();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, q.pixelRatio));
+  sun.castShadow = q.shadows > 0;
+  if (q.shadows && sun.shadow.mapSize.x !== q.shadows) {
+    sun.shadow.mapSize.set(q.shadows, q.shadows);
+    sun.shadow.map?.dispose();
+    sun.shadow.map = null;
+  }
+  for (const m of deco.children) if (m.userData.full != null) m.count = Math.max(1, Math.round(m.userData.full * q.foliage));
+  for (const r of [surfaceAnts, nurseAnts]) r.joints.visible = q.joints;
+  resize();
+}
+
+// ============================================================================
+// DEAD INSECTS, SPIDER DEN, LABELS
+// ============================================================================
+const beetleShell = new THREE.MeshPhysicalMaterial({ color: 0x1d3a2a, metalness: 0.55, roughness: 0.28,
+  clearcoat: 1, iridescence: 0.9, iridescenceIOR: 1.7 });
+const beetleDark = new THREE.MeshStandardMaterial({ color: 0x17110d, roughness: 0.45 });
+function makePreyView() {
+  // A beetle on its back, legs curled up
+  const group = new THREE.Group();
+  const part = (mat, pos, scale) => {
+    const m = new THREE.Mesh(sphereGeo, mat);
+    m.position.set(...pos);
+    m.scale.set(...scale);
+    m.castShadow = true;
+    group.add(m);
+  };
+  part(beetleShell, [-2, 4.2, 0], [8.5, 4, 5.8]);      // wing cases
+  part(beetleDark, [-2, 8.05, 0], [8, 0.25, 0.3]);      // seam between them
+  part(beetleShell, [6, 4, 0], [3.4, 2.8, 4.4]);        // pronotum
+  part(beetleDark, [9.4, 3.4, 0], [2.2, 1.9, 2.5]);     // head
+  const seg = (a, b, t) => {
+    const m = new THREE.Mesh(limbGeo, beetleDark);
+    setSegment(m, a, b, t);
+    m.castShadow = true;
+    group.add(m);
+  };
+  for (const side of [-1, 1]) {
+    for (const x of [4.5, 1, -2.5]) {
+      const hip = [x, 2.5, side * 3.5], knee = [x + 1, 8, side * 7], tip = [x + 2.5, 9.5, side * 4.5];
+      seg(hip, knee, 0.7); seg(knee, tip, 0.5);
+    }
+    seg([10.6, 4, side], [15, 5.5, side * 4], 0.3);
+  }
+  group.scale.setScalar(1.15);
+  scene.add(group);
+  const label = document.createElement('div');
+  label.className = 'label prey';
+  view.appendChild(label);
+  return { group, label };
+}
+function removePrey(pr) {
+  scene.remove(pr.view.group);
+  pr.view.label.remove();
+  for (const a of pr.carriers) a.prey = null;
+}
+function drawPrey() {
+  for (const pr of preys) {
+    pr.view.group.position.set(wx(pr.x), hAt(pr.x, pr.y) - 0.3, wz(pr.y));
+    pr.view.group.rotation.y = -pr.a;
+  }
+}
+function removeSpider(sp) {
+  scene.remove(sp.view.group);
+  sp.view.hp.remove();
+}
+
+const denMarker = new THREE.Group();
+{
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(8, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x050403 }));
+  hole.position.y = 0.4;
+  denMarker.add(hole);
+  const silk = new THREE.MeshStandardMaterial({ color: 0xdedad2, roughness: 0.4, transparent: true, opacity: 0.55 });
+  for (let i = 0; i < 12; i++) {
+    const a = i / 12 * Math.PI * 2, m = new THREE.Mesh(limbGeo, silk);
+    setSegment(m, [Math.cos(a) * 6, 0.8, Math.sin(a) * 6], [Math.cos(a) * 24, 0.3, Math.sin(a) * 24], 0.12);
+    denMarker.add(m);
+  }
+  for (const r of [12, 18]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r, 0.1, 4, 48).rotateX(Math.PI / 2), silk);
+    ring.position.y = 0.6;
+    denMarker.add(ring);
+  }
+  denMarker.visible = false;
+  scene.add(denMarker);
+}
+
+const projected = new THREE.Vector3();
+// Position an HTML overlay at a world point; hidden when off screen or text is ''
+function placeLabel(el, x, y, z, text) {
+  projected.set(x, y, z).project(camera);
+  const onScreen = projected.z < 1 && Math.abs(projected.x) < 1.1 && Math.abs(projected.y) < 1.1;
+  el.style.display = onScreen && text !== '' ? 'block' : 'none';
+  if (!onScreen) return;
+  el.style.left = `${(projected.x + 1) / 2 * view.clientWidth}px`;
+  el.style.top = `${(1 - projected.y) / 2 * view.clientHeight}px`;
+  if (text != null && el.textContent !== String(text)) el.textContent = text;
+}
+
+// ============================================================================
+// WEATHER, FIREFLIES, SKY
+// ============================================================================
+const RAIN_N = 1300;
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainDrops = Array.from({ length: RAIN_N }, () => ({ x: 0, y: -1e5, z: 0, v: rand(9, 14) }));
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainLines = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0, depthWrite: false }));
+rainLines.frustumCulled = false;
+rainLines.userData.noClip = true;
+scene.add(rainLines);
+function updateRain() {
+  rainLines.visible = env.rain > 0.02;
+  if (!rainLines.visible) return;
+  rainLines.material.opacity = 0.16 * env.rain;
+  // Streaks fall in a box around wherever the camera is looking
+  const c = controls.target, span = Math.min(900, 250 + camera.position.distanceTo(c) * 0.8);
+  const active = Math.floor(RAIN_N * env.rain);
+  for (let i = 0; i < RAIN_N; i++) {
+    const d = rainDrops[i], o = i * 6;
+    if (i >= active) { rainPos.fill(-1e5, o, o + 6); continue; }
+    d.y -= d.v;
+    if (d.y < c.y - 60 || Math.abs(d.x - c.x) > span / 2 || Math.abs(d.z - c.z) > span / 2) {
+      d.x = c.x + rand(-span / 2, span / 2);
+      d.z = c.z + rand(-span / 2, span / 2);
+      d.y = c.y + rand(0, 260);
+    }
+    rainPos[o] = d.x; rainPos[o + 1] = d.y; rainPos[o + 2] = d.z;
+    rainPos[o + 3] = d.x + 0.7; rainPos[o + 4] = d.y + 6; rainPos[o + 5] = d.z + 0.35;
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+}
+
+// Puddles: sites in low ground chosen with each terrain. A flat water surface rises with the
+// wetness; where the ground is higher than the water it hides it, so shapes follow the contours.
+const puddleGroup = new THREE.Group();
+scene.add(puddleGroup);
+// Water texture: a muddy rim fading into a sky-tinted middle with a soft sheen across it
+function puddleTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  r.addColorStop(0, '#566e80'); r.addColorStop(0.7, '#3d5161'); r.addColorStop(1, '#34444f');
+  g.fillStyle = r;
+  g.fillRect(0, 0, 256, 256);
+  const sheen = g.createLinearGradient(40, 60, 210, 200);
+  sheen.addColorStop(0, 'rgba(255,255,255,0)'); sheen.addColorStop(0.45, 'rgba(220,235,245,0.28)'); sheen.addColorStop(0.6, 'rgba(255,255,255,0)');
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const puddleMat = new THREE.MeshPhysicalMaterial({ map: puddleTexture(), roughness: 0.06, metalness: 0.05,
+  clearcoat: 1, clearcoatRoughness: 0.04, transparent: true, opacity: 0.92, depthWrite: false,
+  emissive: 0x2a3c4a, emissiveIntensity: 0.6 });
+const puddleLevel = q => THREE.MathUtils.clamp((env.wet - q.th) / (1 - q.th), 0, 1);
+const puddleRadius = (q, lvl) => q.r * Math.sqrt(1 - Math.sqrt(1 - lvl * 0.9));
+function placePuddles() {
+  puddleGroup.children.forEach(m => m.geometry.dispose());
+  puddleGroup.clear();
+  for (const q of puddles) {
+    // A flat water surface; the hollow's own walls hide whatever lies outside the water line
+    const mesh = new THREE.Mesh(new THREE.CircleGeometry(q.r * 1.4, 48).rotateX(-Math.PI / 2), puddleMat);
+    mesh.receiveShadow = true;
+    mesh.visible = false;
+    mesh.renderOrder = 1;
+    puddleGroup.add(mesh);
+    q.mesh = mesh;
+  }
+  wetObstacles = [];
+}
+function updatePuddles() {
+  puddleMat.emissiveIntensity = 0.08 + 0.3 * env.day;   // sky reflection fades at night
+  for (const q of puddles) {
+    const lvl = puddleLevel(q);
+    q.mesh.visible = lvl > 0.03;
+    // Water rises from the bottom of the hollow towards its rim
+    if (q.mesh.visible) q.mesh.position.set(wx(q.x), q.low + 0.1 + lvl * q.rise, wz(q.y));
+  }
+}
+
+const FIREFLY_N = 80;
+const flyPos = new Float32Array(FIREFLY_N * 3), flyCol = new Float32Array(FIREFLY_N * 3);
+const flyGeo = new THREE.BufferGeometry();
+flyGeo.setAttribute('position', new THREE.BufferAttribute(flyPos, 3));
+flyGeo.setAttribute('color', new THREE.BufferAttribute(flyCol, 3));
+const fireflies = new THREE.Points(flyGeo, new THREE.PointsMaterial({ map: GLOW, size: 16, vertexColors: true,
+  transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+fireflies.frustumCulled = false;
+fireflies.userData.noClip = true;
+scene.add(fireflies);
+let flyAnchors = [];
+function placeFireflies(rng) {
+  // Mostly around the shrubs, a few out in the open
+  flyAnchors = Array.from({ length: FIREFLY_N }, (_, i) => {
+    const s = shrubs.length && i % 3 ? shrubs[i % shrubs.length] : null;
+    return { x: s ? s.x + (rng() - 0.5) * 120 : rng() * W, y: s ? s.y + (rng() - 0.5) * 120 : rng() * H,
+      ph: rng() * 100, h: 8 + rng() * 25 };
+  });
+}
+function updateFireflies(t) {
+  const dark = 1 - env.day;
+  fireflies.visible = FX.fireflies && dark > 0.4;
+  if (!fireflies.visible) return;
+  flyAnchors.forEach((f, i) => {
+    const x = f.x + Math.sin(t * 0.3 + f.ph) * 18, y = f.y + Math.cos(t * 0.23 + f.ph * 1.3) * 18;
+    flyPos.set([wx(x), hAt(x, y) + f.h + Math.sin(t * 0.9 + f.ph) * 4, wz(y)], i * 3);
+    const blink = Math.max(0, Math.sin(t * 2.2 + f.ph * 7)) ** 3 * dark;
+    flyCol.set([0.85 * blink, blink, 0.35 * blink], i * 3);
+  });
+  flyGeo.attributes.position.needsUpdate = flyGeo.attributes.color.needsUpdate = true;
+}
+
+const DAY_BG = new THREE.Color(0x0b0908), NIGHT_BG = new THREE.Color(0x03050a), RAIN_BG = new THREE.Color(0x0e1013);
+const SUN_LOW = new THREE.Color(0xff9a50), SUN_HIGH = new THREE.Color(0xffe2bf);
+const HEMI_DAY = new THREE.Color(0x9aa6b8), HEMI_NIGHT = new THREE.Color(0x2a3a5a);
+function updateSky() {
+  const d = env.day, wet = env.rain, ang = (env.tod - 0.25) * Math.PI * 2, elev = Math.sin(ang);
+  if (FX.dayNight) sun.position.set(-Math.cos(ang) * 800, 140 + Math.max(0, elev) * 640, -260);
+  else sun.position.set(-760, 560, -260);
+  sun.intensity = 2.2 * d * (1 - 0.3 * wet);
+  sun.color.copy(SUN_LOW).lerp(SUN_HIGH, FX.dayNight ? THREE.MathUtils.clamp(elev * 2, 0, 1) : 1);
+  moon.intensity = 0.9 * (1 - d);
+  hemi.intensity = (0.42 + 0.58 * d) * (1 - 0.15 * wet);
+  hemi.color.copy(HEMI_NIGHT).lerp(HEMI_DAY, d);
+  scene.background.copy(NIGHT_BG).lerp(DAY_BG, d).lerp(RAIN_BG, wet * 0.35);
+  scene.fog.color.copy(scene.background);
+  renderer.toneMappingExposure = 1.2 + 0.35 * d;
+  // Wet ground goes darker and shinier
+  const damp = Math.max(wet, env.wet * 0.6);
+  ground.material.roughness = 0.96 - 0.22 * damp;
+  ground.material.color.setScalar(1 - 0.28 * damp);
+}
+
+// ============================================================================
+// UNDERGROUND CUTAWAY - an ant-farm slice through the nest
+// ============================================================================
+const PIT_HALF = 70, PIT_LEN = 160, PIT_DEPTH = 120, PIT_TOP = 16, WALL_PX = 8;
+// Everything inside this box (in front of the nest) is clipped away while the cutaway is on
+const cutPlanes = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), new THREE.Plane(new THREE.Vector3(1, 0, 0), 0),
+  new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)];
+let cutDirty = true;
+function updateCutPlanes() {
+  const cx = wx(P.nestX), cz = wz(P.nestY);
+  cutPlanes[0].constant = cx - PIT_HALF;
+  cutPlanes[1].constant = -(cx + PIT_HALF);
+  cutPlanes[2].constant = cz;
+  cutPlanes[3].constant = -(cz + PIT_LEN);
+}
+function applyCut() {
+  const planes = FX.cutaway ? cutPlanes : null;
+  scene.traverse(o => {
+    if (!o.material || o.userData.noClip) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material])
+      if (m.clippingPlanes !== planes) { m.clippingPlanes = planes; m.clipIntersection = true; m.needsUpdate = true; }
+  });
+  cutDirty = false;
+}
+
+function paintStrata(g, w, h, surfaceY) {
+  // Topsoil into reddish clay into grey subsoil, with wavy bands, grit and stones
+  const grad = g.createLinearGradient(0, surfaceY, 0, h);
+  grad.addColorStop(0, '#2a1c13'); grad.addColorStop(0.15, '#4a3121');
+  grad.addColorStop(0.55, '#5c3d27'); grad.addColorStop(1, '#3e3832');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 16; i++) {
+    const y0 = surfaceY + Math.random() * (h - surfaceY), th = 6 + Math.random() * 40;
+    const amp = 4 + Math.random() * 14, f = 0.004 + Math.random() * 0.01, ph = Math.random() * 10;
+    g.fillStyle = Math.random() < 0.5
+      ? `rgba(${150 + randi(0, 60)},${110 + randi(0, 40)},${70 + randi(0, 30)},${rand(0.08, 0.22)})`
+      : `rgba(10,6,4,${rand(0.1, 0.28)})`;
+    g.beginPath();
+    g.moveTo(0, y0);
+    for (let x = 0; x <= w; x += 16) g.lineTo(x, y0 + Math.sin(x * f + ph) * amp);
+    for (let x = w; x >= 0; x -= 16) g.lineTo(x, y0 + th + Math.sin(x * f * 1.3 + ph) * amp);
+    g.closePath();
+    g.fill();
+  }
+  for (let i = 0; i < w * h / 180; i++) {
+    const v = randi(40, 130);
+    g.fillStyle = `rgba(${v},${v * 0.8 | 0},${v * 0.6 | 0},${rand(0.35, 0.85)})`;
+    g.fillRect(rand(0, w), rand(surfaceY, h), rand(1, 3), rand(1, 3));
+  }
+  for (let i = 0; i < w * h / 9000; i++) {
+    const x = rand(0, w), y = rand(surfaceY, h), rw = rand(3, 12), rh = rw * rand(0.5, 0.9), v = randi(70, 120);
+    g.fillStyle = 'rgba(0,0,0,0.45)';
+    g.beginPath(); g.ellipse(x + 2, y + 2, rw, rh, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = `rgb(${v},${v * 0.85 | 0},${v * 0.72 | 0})`;
+    g.beginPath(); g.ellipse(x, y, rw, rh, 0, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function wallTexture() {
+  // The back wall: soil cross-section with the tunnels and chambers carved into it
+  const c = document.createElement('canvas');
+  c.width = PIT_HALF * 2 * WALL_PX;
+  c.height = (PIT_DEPTH + PIT_TOP) * WALL_PX;
+  const g = c.getContext('2d');
+  const X = x => (x + PIT_HALF) * WALL_PX, Y = y => (PIT_TOP - y) * WALL_PX;
+  paintStrata(g, c.width, c.height, Y(1));
+  g.lineCap = 'round';
+  for (let i = 0; i < 14; i++) {                 // roots reaching down from the surface
+    let x = rand(0, c.width), y = Y(0), w = rand(3, 7);
+    g.strokeStyle = `rgba(${randi(90, 130)},${randi(60, 90)},35,0.85)`;
+    for (let k = 0; k < 8; k++) {
+      g.beginPath(); g.moveTo(x, y);
+      x += rand(-25, 25); y += rand(15, 45);
+      g.lineWidth = w *= 0.8;
+      g.lineTo(x, y); g.stroke();
+    }
+  }
+  const path = e => {
+    const [a, b] = TUNNEL_EDGES[e], A = TUNNEL_NODES[a], B = TUNNEL_NODES[b], C = EDGE_CTRL[e];
+    g.beginPath(); g.moveTo(X(A.x), Y(A.y)); g.quadraticCurveTo(X(C.x), Y(C.y), X(B.x), Y(B.y));
+  };
+  const rooms = TUNNEL_NODES.filter(n => n.room);
+  const room = (n, grow) => {
+    g.beginPath(); g.ellipse(X(n.x), Y(n.y), (n.rx + grow) * WALL_PX, (n.ry + grow) * WALL_PX, 0, 0, Math.PI * 2);
+  };
+  // Packed-earth rims, then hollow interiors (darkest at the back), then worn floors
+  g.strokeStyle = g.fillStyle = 'rgba(160,118,78,0.5)';
+  TUNNEL_EDGES.forEach((_, e) => { path(e); g.lineWidth = (TUNNEL_R * 2 + 1.8) * WALL_PX; g.stroke(); });
+  rooms.forEach(n => { room(n, 0.9); g.fill(); });
+  g.strokeStyle = '#140d09';
+  TUNNEL_EDGES.forEach((_, e) => { path(e); g.lineWidth = TUNNEL_R * 2 * WALL_PX; g.stroke(); });
+  rooms.forEach(n => {
+    const gr = g.createRadialGradient(X(n.x), Y(n.y + n.ry * 0.3), 0, X(n.x), Y(n.y), n.rx * WALL_PX);
+    gr.addColorStop(0, '#0a0605'); gr.addColorStop(1, '#22160e');
+    g.fillStyle = gr; room(n, 0); g.fill();
+  });
+  g.strokeStyle = '#3d2a1c';
+  g.save();
+  g.translate(0, (TUNNEL_R - 0.9) * WALL_PX);
+  TUNNEL_EDGES.forEach((_, e) => { path(e); g.lineWidth = 1.4 * WALL_PX; g.stroke(); });
+  g.restore();
+  rooms.forEach(n => {
+    g.save(); room(n, 0); g.clip();
+    g.fillStyle = '#3a281b';
+    g.fillRect(X(n.x - n.rx), Y(roomFloor(n)), n.rx * 2 * WALL_PX, n.ry * WALL_PX);
+    g.restore();
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+function strataTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  paintStrata(c.getContext('2d'), 512, 512, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+const underground = new THREE.Group();
+underground.visible = false;
+nest.add(underground);
+const pit = new THREE.Group();
+underground.add(pit);
+// The slice is lit from the open side
+const pitLight = new THREE.PointLight(0xffb27a, 420, 420, 1);
+pitLight.position.set(0, -40, 120);
+const pitFill = new THREE.PointLight(0xcfd8ff, 180, 400, 1);
+pitFill.position.set(0, 10, 200);
+underground.add(pitLight, pitFill);
+
+// Food store: a pile that grows bottom-up with the colony's reserves
+const STORE_SPOTS = [];
+{
+  const n = TUNNEL_NODES[7];
+  for (let row = 0; row < 8; row++)
+    for (let i = 0; i < 12 - row; i++)
+      STORE_SPOTS.push([n.x + (i - (11 - row) / 2) * 2.3 + rand(-0.3, 0.3), roomFloor(n) + 1.1 + row * 1.7, PIT_Z - 1 + rand(-1.5, 1.5)]);
+}
+const storePile = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ roughness: 0.55, flatShading: true, emissive: 0x0d1f06 }), STORE_SPOTS.length);
+storePile.userData.noClip = true;
+storePile.castShadow = true;
+STORE_SPOTS.forEach(([x, y, z], i) => {
+  dummy.position.set(x, y, z);
+  dummy.rotation.set(rand(0, 6), rand(0, 6), 0);
+  dummy.scale.setScalar(rand(1.1, 1.5));
+  dummy.updateMatrix();
+  storePile.setMatrixAt(i, dummy.matrix);
+  storePile.setColorAt(i, FOOD_COLORS[randi(0, FOOD_COLORS.length - 1)]);
+});
+underground.add(storePile);
+
+let wallTex = null, strataTex = null;
+function buildPit() {
+  pit.traverse(o => { if (o.isMesh) { o.geometry.dispose(); o.material.dispose(); } });
+  pit.clear();
+  wallTex ??= wallTexture();
+  strataTex ??= strataTexture();
+  // Wall tops follow the ground (and the mound) along the cut, in nest-local coordinates
+  const baseY = hAt(P.nestX, P.nestY) - 0.3;
+  const surface = (x, z) => Math.max(hAt(P.nestX + x, P.nestY + z) - baseY, moundY(x, z)) + 0.05;
+  const strip = (n, at, uvOf) => {
+    const pos = [], uv = [], idx = [];
+    for (let i = 0; i <= n; i++) {
+      const [x, z, u] = at(i / n), top = surface(x, z);
+      pos.push(x, -PIT_DEPTH, z, x, top, z);
+      uv.push(...uvOf(u, -PIT_DEPTH), ...uvOf(u, top));
+      if (i < n) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const mat = map => new THREE.MeshStandardMaterial({ map, roughness: 1, side: THREE.DoubleSide });
+  const sideUV = (u, y) => [u * PIT_LEN / 64, (y + PIT_DEPTH) / 64];
+  const floorGeo = new THREE.PlaneGeometry(PIT_HALF * 2, PIT_LEN).rotateX(-Math.PI / 2).translate(0, -PIT_DEPTH, PIT_LEN / 2);
+  const fuv = floorGeo.attributes.uv;
+  for (let i = 0; i < fuv.count; i++) fuv.setXY(i, fuv.getX(i) * PIT_HALF * 2 / 64, fuv.getY(i) * PIT_LEN / 64);
+  const walls = [
+    new THREE.Mesh(strip(140, t => [-PIT_HALF + t * PIT_HALF * 2, 0, t], (u, y) => [u, (y + PIT_DEPTH) / (PIT_DEPTH + PIT_TOP)]), mat(wallTex)),
+    new THREE.Mesh(strip(80, t => [-PIT_HALF, t * PIT_LEN, t], sideUV), mat(strataTex)),
+    new THREE.Mesh(strip(80, t => [PIT_HALF, t * PIT_LEN, t], sideUV), mat(strataTex)),
+    new THREE.Mesh(floorGeo, mat(strataTex)),
+  ];
+  for (const m of walls) {
+    m.receiveShadow = true;
+    m.userData.noClip = true;
+    pit.add(m);
+  }
+}
+
+let flight = null, savedView = null;
+function flyTo(pos, target, ms = 1400) {
+  flight = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(),
+    start: performance.now(), ms };
+}
+function updateFlight() {
+  if (!flight) return;
+  // Time-based so a hitch (e.g. shader recompiles when the cut switches on) doesn't strand the camera
+  const t = Math.min(1, (performance.now() - flight.start) / flight.ms), e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+  camera.position.lerpVectors(flight.p0, flight.p1, e);
+  controls.target.lerpVectors(flight.t0, flight.t1, e);
+  if (t >= 1) flight = null;
+}
+function setCutaway(on) {
+  FX.cutaway = on;
+  underground.visible = on;
+  if (on) {
+    buildPit();
+    setFollow(false);
+    savedView = { pos: camera.position.clone(), target: controls.target.clone() };
+    controls.maxPolarAngle = Math.PI * 0.62;
+    const c = new THREE.Vector3(wx(P.nestX), hAt(P.nestX, P.nestY), wz(P.nestY));
+    flyTo(c.clone().add(new THREE.Vector3(0, -40, 150)), c.clone().add(new THREE.Vector3(0, -55, 0)));
+  } else {
+    controls.maxPolarAngle = Math.PI * 0.47;
+    if (savedView) flyTo(savedView.pos, savedView.target);
+  }
+  cutDirty = true;
+  syncToggles();
+}
+
+// ============================================================================
+// STATE
+// ============================================================================
+let field, ants, nurses, foods, preys = [], spiders = [], frame;
+let paused = false;
+let totalFood = 0, history = [], windowDeliveries = 0, preyDelivered = 0, spidersKilled = 0, spiderCooldown = 0;
+
+// Colony lifecycle: delivered food goes into the store, the queen spends it on eggs,
+// and each larva must be fed once more (by a nurse) before it can pupate and hatch
+const EGG = 0, LARVA = 1, PUPA = 2;
+const LARVA_AT = 0.3, PUPA_AT = 0.7;    // Stage boundaries as fractions of broodTime
+const STARVE_LIMIT = 1800;              // Steps an unfed larva survives once it's ready to pupate
+let store, brood, layTimer, feedBudget = 0, queenPulse = 0, popHistory = [], broodHistory = [], lastNestRipple = 0;
+
+function freeSlot() {
+  const used = new Set(brood.map(b => b.slot));
+  let s = 0;
+  while (used.has(s)) s++;
+  return s;
+}
+
+function chooseCaste() {
+  // New adults fill whichever role is furthest below its share
+  const total = ants.length + nurses.length + 1;
+  if (nurses.length < total * P.nurseShare) return 'nurse';
+  if (ants.filter(a => a.caste === 'soldier').length < total * P.soldierShare) return 'soldier';
+  return 'forager';
+}
+
+function colonyStep() {
+  // The queen lays only when the store also covers the larvae already waiting to be fed,
+  // so food isn't sunk into eggs that would later starve
+  const unfed = brood.filter(b => b.stage !== PUPA).length;
+  if (++layTimer >= P.layInterval && store >= unfed + 2 && ants.length + nurses.length + brood.length < P.colonyCap) {
+    store -= 1;
+    layTimer = 0;
+    queenPulse = 1;
+    brood.push({ stage: EGG, age: 0, starving: 0, slot: freeSlot() });
+  }
+  // Nurses set the feeding rate (each feeds a larva about every 90 steps); the queen manages a trickle alone
+  feedBudget = Math.min(feedBudget + (nurses.length + 0.3) / 90, Math.max(1, nurses.length));
+  const hatched = [];
+  brood = brood.filter(b => {
+    b.age++;
+    if (b.stage === EGG && b.age >= P.broodTime * LARVA_AT) b.stage = LARVA;
+    if (b.stage === LARVA && b.age >= P.broodTime * PUPA_AT) {
+      if (store >= 1 && feedBudget >= 1) {
+        store -= 1;
+        feedBudget -= 1;
+        b.stage = PUPA;
+        b.starving = 0;
+      } else {
+        b.age--;   // wait for food
+        if (++b.starving > STARVE_LIMIT) return false;
+      }
+    }
+    if (b.stage === PUPA && b.age >= P.broodTime) { hatched.push(b); return false; }
+    return true;
+  });
+  for (const b of hatched) {
+    const caste = chooseCaste();
+    if (caste === 'nurse') nurses.push(new Nurse());
+    else ants.push(new Ant(P.nestX + randi(-8, 8), P.nestY + randi(-8, 8), 0, caste));
+    ripple(P.nestX, P.nestY, 0x2a5f7a, 18, 30);
+  }
+}
+
+function envStep() {
+  if (FX.dayNight) {
+    env.tod += 1 / P.dayLength;
+    if (env.tod >= 1) { env.tod -= 1; env.dayCount++; }
+    // Full dark for about a third of the cycle, with twilight either side
+    env.day = THREE.MathUtils.smoothstep(Math.sin((env.tod - 0.25) * Math.PI * 2), -0.5, -0.05);
+  } else env.day = 1;
+  if (env.rainTimer > 0) env.rainTimer--;
+  else if (FX.weather && Math.random() < 1 / 9000) env.rainTimer = randi(900, 1600);
+  env.rain += ((env.rainTimer > 0 ? 1 : 0) - env.rain) * 0.01;
+  // Puddles fill over a few hundred steps of rain and evaporate slowly afterwards (faster by day)
+  if (env.rain > 0.3) env.wet = Math.min(1, env.wet + env.rain / 700);
+  else env.wet = Math.max(0, env.wet - (0.3 + 0.7 * env.day) / 3500);
+  if (frame % 10 === 0) {
+    wetObstacles = [];
+    for (const q of puddles) {
+      const lvl = puddleLevel(q);
+      if (lvl > 0.2) wetObstacles.push({ x: q.x, y: q.y, r: puddleRadius(q, lvl) * 0.85 });
+    }
+    // Standing water washes out any trail that crosses it
+    if (frame % 30 === 0) for (const o of wetObstacles) field.wash(o.x, o.y, o.r);
+  }
+  // Raindrops ring the puddles
+  if (env.rain > 0.3 && Math.random() < 0.2 * env.rain) {
+    const q = puddles[randi(0, puddles.length - 1)], lvl = q && puddleLevel(q);
+    if (lvl > 0.15) {
+      const a = rand(0, Math.PI * 2), d = Math.sqrt(Math.random()) * puddleRadius(q, lvl) * 0.8;
+      ripple(q.x + Math.cos(a) * d, q.y + Math.sin(a) * d, 0x5f7f98, rand(3, 6), 24);
+    }
+  }
+}
+
+function spawnFood(existing = []) {
+  for (let i = 0; i < 100; i++) {
+    const x = randi(100, W - 100), y = randi(100, H - 100);
+    if (Math.hypot(x - P.nestX, y - P.nestY) < 200) continue;
+    if (existing.some(f => f.pieces > 0 && Math.hypot(x - f.x, y - f.y) < 150)) continue;
+    if (obstacles.some(r => Math.hypot(x - r.x, y - r.y) < r.r + P.foodSize + 15)) continue;
+    if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + P.foodSize)) continue;
+    return new Food(x, y, P.foodSize);
+  }
+  return new Food(randi(100, W - 100), randi(100, H - 100), P.foodSize);
+}
+
+function spawnNaturalPrey() {
+  for (let i = 0; i < 50; i++) {
+    const x = rand(60, W - 60), y = rand(60, H - 60);
+    if (Math.hypot(x - P.nestX, y - P.nestY) < 250) continue;
+    if (obstacles.some(o => Math.hypot(x - o.x, y - o.y) < o.r + 15)) continue;
+    if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + 15)) continue;
+    if (foods.some(f => Math.hypot(x - f.x, y - f.y) < f.size + 30)) continue;
+    preys.push(new Prey(x, y));
+    return;
+  }
+}
+
+function reset() {
+  field = new Field();
+  foods?.forEach(disposeFoodView);
+  preys.forEach(removePrey);
+  spiders.forEach(removeSpider);
+  preys = []; spiders = [];
+  // Founders split by caste; staggered ages so they don't all die at once
+  const total = P.antCount, nN = Math.round(total * P.nurseShare), nS = Math.round(total * P.soldierShare);
+  const age = () => randi(0, P.antMaxAge / 2);
+  ants = []; nurses = [];
+  for (let i = 0; i < total; i++) {
+    if (i < nN) nurses.push(new Nurse(age()));
+    else ants.push(new Ant(P.nestX + randi(-30, 30), P.nestY + randi(-30, 30), age(), i < nN + nS ? 'soldier' : 'forager'));
+  }
+  const first = spawnFood();
+  foods = [first, spawnFood([first])];
+  frame = 0;
+  store = P.startStore;
+  brood = [];
+  layTimer = 0;
+  feedBudget = 0;
+  totalFood = windowDeliveries = preyDelivered = spidersKilled = spiderCooldown = 0;
+  history = []; popHistory = []; broodHistory = [];
+  Object.assign(env, { tod: 0.3, day: 1, rain: 0, rainTimer: 0, dayCount: 1, wet: 0 });
+  wetObstacles = [];
+  ripples.forEach(r => scene.remove(r.m));
+  ripples = [];
+  setFollow(false);
+}
+
+function step() {
+  frame++;
+  envStep();
+  field.update();
+  for (const f of foods) f.recent *= 0.95;
+
+  // Elite ants (fastest average trips) are computed once per step
+  const withTrips = ants.filter(a => a.trips.length).sort((a, b) => a.score() - b.score());
+  const elite = new Set(withTrips.slice(0, Math.max(1, Math.floor(withTrips.length * P.elite))));
+
+  const dead = new Set();
+  let deliveries = 0;
+  for (const ant of ants) {
+    const r = ant.update(elite, frame);
+    if (r === 'dead') { dead.add(ant); continue; }
+    if (r === 'delivered') {
+      deliveries++;
+      if (frame - lastNestRipple > 20) { ripple(P.nestX, P.nestY, 0x7a6448, 30, 40); lastNestRipple = frame; }
+    } else if (r) {
+      const [kind, obj] = r;
+      if (kind === 'taken' || kind === 'depleted') ripple(ant.x, ant.y, 0x96e150, 8, 20);
+      if (kind === 'depleted') ripple(obj.x, obj.y, 0x96e150, 70, 60);
+      if (kind === 'scouted' || kind === 'grabbed') ripple(ant.x, ant.y, 0xd8b04a, 10, 24);
+    }
+  }
+
+  // Used-up main sources regrow somewhere new after a while; dropped crumbs just vanish
+  for (let i = foods.length - 1; i >= 0; i--) {
+    const f = foods[i];
+    if (f.pieces > 0) continue;
+    if (!f.main) { disposeFoodView(f); foods.splice(i, 1); continue; }
+    f.regrow = (f.regrow || 901) - 1;
+    if (f.regrow === 0) {
+      disposeFoodView(f);
+      foods[i] = spawnFood(foods);
+      ripple(foods[i].x, foods[i].y, 0x96e150, 60, 45);
+    }
+  }
+
+  // Dead insects being dragged home
+  for (let i = preys.length - 1; i >= 0; i--) {
+    const pr = preys[i];
+    if (pr.update() === 'delivered') {
+      store += pr.value;
+      totalFood += pr.value;
+      preyDelivered++;
+      for (const a of pr.carriers) a.a = rand(0, Math.PI * 2);
+      ripple(P.nestX, P.nestY, 0xd8b04a, 40, 50);
+      removePrey(pr);
+      preys.splice(i, 1);
+    }
+  }
+  if (frame % 2400 === 0 && preys.length < 2) spawnNaturalPrey();
+
+  for (const a of dead) a.dead = true;
+  ants = ants.filter(a => !dead.has(a));
+  nurses = nurses.filter(n => n.update() !== 'dead');
+  store += deliveries;
+  colonyStep();
+  ants.length = Math.min(ants.length, MAX_ANTS);
+
+  // Spiders hunt, get bitten by soldiers, die, and come back after a while
+  if (spiderCooldown > 0) spiderCooldown--;
+  if (spiders.length < P.predatorCount && spiderCooldown === 0) { spiders.push(new Spider()); spiderCooldown = 60; cutDirty = true; }
+  while (spiders.length > P.predatorCount) removeSpider(spiders.pop());
+  for (let i = spiders.length - 1; i >= 0; i--) {
+    const sp = spiders[i];
+    if (sp.hp <= 0) {
+      ripple(sp.x, sp.y, 0xeb4b46, 50, 60);
+      removeSpider(sp);
+      spiders.splice(i, 1);
+      spiderCooldown = 900;
+      spidersKilled++;
+      continue;
+    }
+    const prey = sp.update(ants);
+    if (!prey) continue;
+    if (prey.caste === 'soldier' && Math.random() < 0.5) { sp.timer = 40; continue; }   // soldiers fight free
+    const k = ants.indexOf(prey);
+    if (k >= 0) ants.splice(k, 1);
+    prey.dead = true;
+    sp.timer = 480;   // a slow meal
+    ripple(prey.x, prey.y, 0xeb4b46, 14, 30);
+  }
+
+  totalFood += deliveries;
+  windowDeliveries += deliveries;
+  if (frame % 30 === 0) {
+    history.push(windowDeliveries * 2);
+    popHistory.push(ants.length + nurses.length);
+    broodHistory.push(brood.length);
+    windowDeliveries = 0;
+    for (const h of [history, popHistory, broodHistory]) if (h.length > 90) h.shift();
+  }
+}
+
+// ============================================================================
+// PANEL
+// ============================================================================
+const controlsEl = document.getElementById('controls');
+const loadJSON = key => { try { return JSON.parse(localStorage.getItem(key) || '{}'); } catch { return {}; } };
+const UI = loadJSON('antsim-ui');
+const saveUI = () => { try { localStorage.setItem('antsim-ui', JSON.stringify(UI)); } catch {} };
+const saveFX = () => { try { const { cutaway, ...keep } = FX; localStorage.setItem('antsim-fx', JSON.stringify(keep)); } catch {} };
+
+// Collapsible section; open/closed state is remembered
+function group(title, open) {
+  const g = document.createElement('div');
+  g.className = 'group';
+  const h = document.createElement('div');
+  h.className = 'section';
+  h.textContent = title;
+  const body = document.createElement('div');
+  body.className = 'body';
+  g.append(h, body);
+  const setOpen = o => { g.classList.toggle('collapsed', !o); UI[title] = o; saveUI(); };
+  setOpen(UI[title] ?? open);
+  h.addEventListener('click', () => setOpen(g.classList.contains('collapsed')));
+  controlsEl.appendChild(g);
+  return body;
+}
+function addSlider(body, [key, label, min, max, stepSize, decimals]) {
+  const wrap = document.createElement('div');
+  wrap.className = 'slider';
+  wrap.innerHTML = `<div class="row"><span>${label}</span><b></b></div>
+    <input type="range" min="${min}" max="${max}" step="${stepSize}" value="${P[key]}">`;
+  const input = wrap.querySelector('input'), out = wrap.querySelector('b');
+  const sync = () => {
+    P[key] = parseFloat(input.value);
+    out.textContent = P[key].toFixed(decimals);
+    input.style.setProperty('--fill', `${(P[key] - min) / (max - min) * 100}%`);
+    if (key === 'foodSize') foods?.filter(f => f.main).forEach(f => f.resize(P.foodSize));
+  };
+  input.addEventListener('input', sync);
+  sync();
+  body.appendChild(wrap);
+}
+const toggleInputs = {};
+function addToggles(body, list) {
+  const box = document.createElement('div');
+  box.className = 'toggles';
+  for (const [key, label, onChange] of list) {
+    const el = document.createElement('label');
+    el.className = 'toggle';
+    el.innerHTML = `<input type="checkbox"${FX[key] ? ' checked' : ''}><span>${label}</span>`;
+    const input = el.querySelector('input');
+    input.addEventListener('change', () => {
+      if (onChange) onChange(input.checked);
+      else FX[key] = input.checked;
+      saveFX();
+      input.blur();   // keep keyboard shortcuts working
+    });
+    toggleInputs[key] = input;
+    box.appendChild(el);
+  }
+  body.appendChild(box);
+}
+function syncToggles() { for (const k in toggleInputs) toggleInputs[k].checked = !!FX[k]; }
+function addButton(body, label, onClick) {
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = label;
+  b.addEventListener('click', () => { onClick(b); b.blur(); });
+  body.appendChild(b);
+  return b;
+}
+
+{
+  const display = group('DISPLAY', true);
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  for (const q of ['low', 'medium', 'high']) {
+    const b = document.createElement('button');
+    b.textContent = q[0].toUpperCase() + q.slice(1);
+    b.dataset.q = q;
+    b.addEventListener('click', () => {
+      FX.quality = q;
+      saveFX();
+      applyQuality();
+      seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.q === q));
+      b.blur();
+    });
+    b.classList.toggle('on', FX.quality === q);
+    seg.appendChild(b);
+  }
+  const ql = document.createElement('div');
+  ql.className = 'qlabel';
+  ql.textContent = 'Quality';
+  display.append(ql, seg);
+  addToggles(display, [
+    ['cutaway', 'Underground cutaway', setCutaway], ['antBoost', 'Bigger ants zoomed out'],
+    ['nestInfo', 'Nest info badge'], ['bloom', 'Bloom'], ['trails', 'Pheromone trails'],
+    ['foodGlow', 'Food glow'], ['nestGlow', 'Nest glow'], ['spiderGlow', 'Spider eyes & glow'],
+    ['ripples', 'Ripples'], ['fireflies', 'Fireflies'],
+  ]);
+  group('COLONY STATS', true).appendChild(document.getElementById('statsBlock'));
+  for (const [section, entries, open] of SLIDERS) {
+    const body = group(section, open);
+    entries.forEach(e => addSlider(body, e));
+    if (section === 'ENVIRONMENT') {
+      addToggles(body, [['dayNight', 'Day & night cycle'], ['weather', 'Random rain']]);
+      addButton(body, 'Make it rain', () => { env.rainTimer = env.rainTimer > 0 ? 0 : 1200; });
+    }
+    if (section === 'PREDATORS')
+      addButton(body, 'Clear spider den', () => { P.denX = P.denY = null; denMarker.visible = false; });
+  }
+  group('HELP', false).appendChild(document.getElementById('keys'));
+}
+
+const statsEl = document.getElementById('stats'), foodsEl = document.getElementById('foods');
+const rateEl = document.getElementById('rate'), fpsEl = document.getElementById('fps');
+const popEl = document.getElementById('pop'), clockEl = document.getElementById('clock');
+const badge = document.getElementById('nestbadge');
+const badgeText = badge.querySelector('span'), badgeSpark = badge.querySelector('canvas');
+
+// Line charts sharing one vertical scale; each series is { data, color, fill }
+function drawSpark(canvas, series) {
+  const g = canvas.getContext('2d');
+  const dpr = devicePixelRatio, w = canvas.clientWidth, h = canvas.clientHeight;
+  if (!w) return;
+  if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const len = series[0].data.length;
+  if (len < 2) {
+    g.fillStyle = '#322f38';
+    g.fillRect(0, h - 1, w, 1);
+    return;
+  }
+  const peak = Math.max(1, ...series.flatMap(s => s.data)), dx = w / (len - 1);
+  for (const { data, color, fill } of series) {
+    g.beginPath();
+    data.forEach((v, i) => g.lineTo(i * dx, h - 2 - v / peak * (h - 4)));
+    g.strokeStyle = color;
+    g.lineWidth = 1.6;
+    g.stroke();
+    g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+    g.fillStyle = fill;
+    g.fill();
+  }
+}
+
+function updatePanel(fps) {
+  const withTrips = ants.filter(a => a.trips.length).sort((a, b) => a.score() - b.score());
+  const avg = withTrips.length ? withTrips.reduce((s, a) => s + a.score(), 0) / withTrips.length : 0;
+  const best = withTrips.length ? withTrips[0].score() : 0;
+  const elite = withTrips.length ? Math.max(1, Math.floor(withTrips.length * P.elite)) : 0;
+  const stage = k => brood.filter(b => b.stage === k).length;
+  const starving = brood.filter(b => b.starving).length;
+  const soldiers = ants.filter(a => a.caste === 'soldier').length, sheltering = ants.filter(a => a.inside).length;
+  const stats = [
+    ['Foragers', ants.length - soldiers], ['Soldiers', soldiers],
+    ['Nurses', nurses.length], ['Sheltering', sheltering],
+    ['Food store', store], ['Eggs', stage(EGG)],
+    ['Larvae', starving ? `${stage(LARVA)} (${starving} hungry)` : stage(LARVA)], ['Pupae', stage(PUPA)],
+    ['Food collected', totalFood], ['Insects hauled', preyDelivered],
+    ['Spiders', `${spiders.length} (${spidersKilled} killed)`], ['Elite ants', elite],
+    ['Avg trip', `${avg | 0}f`], ['Best trip', `${best | 0}f`]];
+  statsEl.innerHTML = stats.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
+  const mains = foods.filter(f => f.main), crumbs = foods.length - mains.length;
+  foodsEl.innerHTML = mains.map((f, i) => f.pieces > 0
+    ? `<div class="food"><span>Source ${i + 1}</span><div class="bar"><i style="width:${f.pieces / f.max * 100}%"></i></div><b>${f.pieces} / ${f.max}</b></div>`
+    : `<div class="food"><span>Source ${i + 1}</span><span>regrowing…</span><span></span></div>`).join('')
+    + (crumbs ? `<div class="food"><span>Crumbs</span><span>${crumbs} dropped pile${crumbs > 1 ? 's' : ''}</span><span></span></div>` : '');
+  rateEl.textContent = (history.at(-1) ?? 0).toFixed(1);
+  fpsEl.textContent = `${fps | 0} fps`;
+  const hours = env.tod * 24, hh = String(Math.floor(hours)).padStart(2, '0'), mm = String(Math.floor(hours % 1 * 60)).padStart(2, '0');
+  clockEl.textContent = (FX.dayNight ? `Day ${env.dayCount} · ${hh}:${mm} · ${env.day > 0.5 ? 'day' : env.day > 0.05 ? 'twilight' : 'night'}` : 'Always day')
+    + (env.rain > 0.3 ? ' · raining' : '');
+
+  const pop = ants.length + nurses.length;
+  popEl.textContent = `${pop} + ${brood.length}`;
+  drawSpark(document.getElementById('spark'), [{ data: history, color: '#ffa537', fill: 'rgba(255,165,55,0.14)' }]);
+  const popSeries = [
+    { data: popHistory, color: '#ffa537', fill: 'rgba(255,165,55,0.10)' },
+    { data: broodHistory, color: '#5fb9e1', fill: 'rgba(95,185,225,0.12)' },
+  ];
+  drawSpark(document.getElementById('spark2'), popSeries);
+  badgeText.innerHTML = `<b>${pop}</b> ants · <b>${brood.length}</b> brood · <b>${store}</b> food`;
+  drawSpark(badgeSpark, popSeries);
+}
+
+// ============================================================================
+// INTERACTION
+// ============================================================================
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit = new THREE.Vector3();
+let dragging = null, follow = null, usingTool = false, lastWash = 0;
+
+function simPoint(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  // Refine against the terrain by re-intersecting at the height found under the last hit
+  let y = 0;
+  for (let k = 0; k < 4; k++) {
+    groundPlane.constant = -y;
+    if (!raycaster.ray.intersectPlane(groundPlane, hit)) return null;
+    y = hAt(hit.x + W / 2, hit.z + H / 2);
+  }
+  return { x: hit.x + W / 2, y: hit.z + H / 2 };
+}
+function grabTarget(p) {
+  if (!p) return null;
+  if (Math.hypot(p.x - P.nestX, p.y - P.nestY) < 40) return 'nest';
+  const i = foods.findIndex(f => f.pieces > 0 && f.inside(p.x, p.y));
+  return i >= 0 ? i : null;
+}
+
+// Tools: what a left click on the ground does
+const TOOLS = [
+  ['move', 'Move', 'Drag the nest or food; drag elsewhere to orbit'],
+  ['food', 'Drop food', 'Click to drop a small crumb pile'],
+  ['insect', 'Dead insect', 'Click to drop prey; ants team up to drag it home'],
+  ['rock', 'Rock', 'Click to place a rock'],
+  ['water', 'Water', 'Click or drag to wash pheromone trails away'],
+  ['den', 'Spider den', 'Click to set where spiders appear'],
+];
+let tool = 'move';
+const toolsEl = document.getElementById('tools');
+TOOLS.forEach(([name, label, tip], i) => {
+  const b = document.createElement('button');
+  b.innerHTML = `<kbd>${i + 1}</kbd>${label}`;
+  b.title = tip;
+  b.dataset.tool = name;
+  b.addEventListener('click', () => { setTool(name); b.blur(); });
+  toolsEl.appendChild(b);
+});
+function setTool(name) {
+  tool = name;
+  toolsEl.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tool === name));
+  renderer.domElement.style.cursor = name === 'move' ? '' : 'crosshair';
+}
+setTool('move');
+
+function useTool(p) {
+  if (!p || p.x < 0 || p.y < 0 || p.x > W || p.y > H) return;
+  if (tool === 'food') {
+    foods.push(new Food(p.x, p.y, 16, 30, false));
+    ripple(p.x, p.y, 0x96e150, 24, 30);
+  } else if (tool === 'insect') {
+    preys.push(new Prey(p.x, p.y));
+    cutDirty = true;
+    ripple(p.x, p.y, 0xd8b04a, 24, 30);
+  } else if (tool === 'rock') {
+    if (Math.hypot(p.x - P.nestX, p.y - P.nestY) < 70) return;
+    const r = { x: p.x, y: p.y, r: rand(6, 18) };
+    rocks.push(r);
+    obstacles.push(r);
+    addRockMesh(r, Math.random);
+    ripple(p.x, p.y, 0x9a958e, r.r + 8, 30);
+  } else if (tool === 'water') {
+    field.wash(p.x, p.y, 45);
+    if (performance.now() - lastWash > 120) { ripple(p.x, p.y, 0x4aa8ff, 45, 35); lastWash = performance.now(); }
+  } else if (tool === 'den') {
+    P.denX = p.x;
+    P.denY = p.y;
+    ripple(p.x, p.y, 0xeb4b46, 30, 40);
+  }
+}
+
+// Registered before OrbitControls so a grab or tool use can disable orbiting for that drag
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const p = simPoint(e);
+  if (tool === 'move') {
+    const target = grabTarget(p);
+    if (target === null) return;
+    dragging = target;
+    renderer.domElement.style.cursor = 'grabbing';
+  } else {
+    usingTool = true;
+    useTool(p);
+  }
+  controls.enabled = false;
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (usingTool) { if (tool === 'water') useTool(simPoint(e)); return; }
+  const p = simPoint(e);
+  if (dragging === null) {
+    if (tool === 'move') renderer.domElement.style.cursor = grabTarget(p) !== null ? 'grab' : '';
+    return;
+  }
+  if (!p) return;
+  const x = Math.max(30, Math.min(W - 30, p.x)), y = Math.max(30, Math.min(H - 30, p.y));
+  if (dragging === 'nest') { P.nestX = x; P.nestY = y; }
+  else if (foods[dragging]) { foods[dragging].x = x; foods[dragging].y = y; }
+});
+addEventListener('pointerup', () => {
+  if (dragging === null && !usingTool) return;
+  if (dragging === 'nest' && FX.cutaway) buildPit();
+  dragging = null;
+  usingTool = false;
+  controls.enabled = !follow;
+  setTool(tool);
+});
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.47;
+controls.minDistance = 30;
+controls.maxDistance = 2400;
+function homeCamera() {
+  camera.position.copy(HOME_POS);
+  controls.target.set(0, 0, 40);
+}
+homeCamera();
+
+const followEl = document.getElementById('follow'), pausedEl = document.getElementById('paused');
+function setFollow(on) {
+  if (on) {
+    const out = ants.filter(a => !a.inside), carriers = out.filter(a => a.food);
+    const pool = carriers.length ? carriers : out;
+    follow = pool[randi(0, pool.length - 1)] ?? null;
+  } else follow = null;
+  controls.enabled = !follow;
+  followEl.style.display = follow ? 'block' : 'none';
+}
+const followPos = new THREE.Vector3(), followLook = new THREE.Vector3();
+function updateFollow() {
+  if (!follow) return;
+  if (follow.dead || follow.inside) setFollow(true);
+  if (!follow) return;
+  const c = Math.cos(follow.a), s = Math.sin(follow.a), x = wx(follow.x), z = wz(follow.y), h = hAt(follow.x, follow.y);
+  followPos.set(x - c * 60, h + 42, z - s * 60);
+  camera.position.lerp(followPos, 0.05);
+  followLook.set(x + c * 10, h + 3, z + s * 10);
+  controls.target.lerp(followLook, 0.12);
+  camera.lookAt(controls.target);
+}
+
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    paused = !paused;
+    pausedEl.style.display = paused ? 'flex' : 'none';
+  } else if (e.code === 'KeyR') reset();
+  else if (e.code === 'KeyT') { buildWorld((Math.random() * 1e9) | 0); reset(); }
+  else if (e.code === 'KeyF') { if (FX.cutaway) setCutaway(false); setFollow(true); }
+  else if (e.code === 'Escape') setFollow(false);
+  else if (e.code === 'KeyC') { setFollow(false); if (FX.cutaway) setCutaway(false); homeCamera(); }
+  else if (e.code === 'KeyU') setCutaway(!FX.cutaway);
+  else if (e.code === 'KeyW') env.rainTimer = env.rainTimer > 0 ? 0 : 1200;
+  else if (/^Digit[1-6]$/.test(e.code)) setTool(TOOLS[+e.code.slice(5) - 1][0]);
+});
+
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  renderer.setSize(w, h);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(w, h);
+  bloom.resolution.set(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+
+// ============================================================================
+// MAIN LOOP
+// ============================================================================
+buildWorld((Math.random() * 1e9) | 0);
+reset();
+let last = performance.now(), fps = 60, panelTick = 0;
+
+function loop(now) {
+  requestAnimationFrame(loop);
+  fps += (1000 / Math.max(1, now - last) - fps) * 0.05;
+  last = now;
+  const t = now / 1000;
+  windUniform.value = t;
+
+  if (!paused) {
+    for (let i = 0; i < P.simSpeed; i++) step();
+    updateRipples();
+  }
+
+  updateSky();
+  bloom.enabled = FX.bloom && quality().bloom;
+  pherPlane.visible = FX.trails;
+  nest.userData.glow.visible = FX.nestGlow && !FX.cutaway;
+  nest.position.set(wx(P.nestX), hAt(P.nestX, P.nestY) - 0.3, wz(P.nestY));
+  nest.updateMatrixWorld();
+  updateCutPlanes();
+  if (cutDirty || (FX.cutaway && panelTick % 45 === 0)) applyCut();
+
+  if (FX.trails) drawPheromones(field, t);
+  drawAnts();
+  drawNurses();
+  drawFood();
+  drawPrey();
+  drawBrood();
+  animateQueen(now);
+  spiders.forEach(drawSpider);
+  storePile.count = FX.cutaway ? Math.min(STORE_SPOTS.length, Math.floor(store)) : 0;
+  denMarker.visible = P.denX != null;
+  if (denMarker.visible) denMarker.position.set(wx(P.denX), hAt(P.denX, P.denY), wz(P.denY));
+  updateRain();
+  updatePuddles();
+  updateFireflies(t);
+
+  if (follow) updateFollow();
+  else { updateFlight(); controls.update(); }
+
+  // HTML overlays: food counts, prey helpers needed, spider health, nest badge
+  for (const f of foods)
+    if (f.view) placeLabel(f.view.label, wx(f.x), hAt(f.x, f.y + f.size + 14), wz(f.y + f.size + 14), f.pieces > 0 ? f.pieces : '');
+  for (const pr of preys)
+    placeLabel(pr.view.label, wx(pr.x), hAt(pr.x, pr.y) + 26, wz(pr.y), pr.moving ? '' : `${pr.carriers.length}/${pr.weight} ants`);
+  for (const sp of spiders) {
+    placeLabel(sp.view.hp, wx(sp.x), hAt(sp.x, sp.y) + 34, wz(sp.y), sp.hp < sp.maxHp - 1 ? null : '');
+    sp.view.hp.firstChild.style.width = `${Math.max(0, sp.hp / sp.maxHp) * 100}%`;
+  }
+  if (FX.nestInfo && !FX.cutaway) placeLabel(badge, wx(P.nestX), hAt(P.nestX, P.nestY) + 40, wz(P.nestY), null);
+  else badge.style.display = 'none';
+
+  if (++panelTick % 10 === 0) updatePanel(fps);
+  composer.render();
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

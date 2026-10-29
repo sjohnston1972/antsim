@@ -1,0 +1,9 @@
+{
+  "name": "antsim",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"require('fs').mkdirSync('public',{recursive:true});require('fs').copyFileSync('antsim-threejs.html','public/index.html')\"",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": { "wrangler": "^4" }
+}

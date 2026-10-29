@@ -1,0 +1,6 @@
+.env
+.claude/
+__pycache__/
+node_modules/
+public/
+.wrangler/
