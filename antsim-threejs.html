@@ -47,7 +47,12 @@
   .group .section::before { content: "▾"; font-size: 10px; color: var(--dim); transition: transform .15s; }
   .group.collapsed .section::before { transform: rotate(-90deg); }
   .group.collapsed .body { display: none; }
-  #clock { font-size: 12px; color: var(--accent); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+  #clockrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+  #clock { font-size: 12px; color: var(--accent); font-variant-numeric: tabular-nums; }
+  #daynight { font: 600 11px Inter, sans-serif; padding: 3px 9px; border-radius: 999px; cursor: pointer;
+    background: var(--card); color: var(--dim); border: 1px solid var(--track); white-space: nowrap; }
+  #daynight:hover { border-color: var(--accent); color: var(--text); }
+  #daynight.on { color: var(--text); border-color: #ffa53788; }
   .qlabel { font-size: 12.5px; color: var(--dim); margin-top: 4px; }
   .seg { display: flex; background: var(--card); border-radius: 8px; padding: 3px; gap: 3px; margin: 4px 0 10px; }
   .seg button, .btn, #tools button { font: 600 12px Inter, sans-serif; border: 0; cursor: pointer; }
@@ -117,7 +122,7 @@
   <div id="fps"></div>
   <h1>ANT COLONY <span>3D</span></h1>
   <div class="sub">Probabilistic ACO · blind foraging</div>
-  <div id="clock"></div>
+  <div id="clockrow"><div id="clock"></div><button id="daynight" title="Day &amp; night cycle (N)"></button></div>
   <div id="controls"></div>
   <div id="statsBlock">
     <div class="card">
@@ -134,7 +139,7 @@
   </div>
   <div class="keys" id="keys">
     <kbd>Space</kbd> pause &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>T</kbd> new terrain<br>
-    <kbd>U</kbd> underground cutaway &nbsp; <kbd>W</kbd> rain on/off<br>
+    <kbd>U</kbd> underground cutaway &nbsp; <kbd>W</kbd> rain on/off &nbsp; <kbd>N</kbd> day/night<br>
     <kbd>F</kbd> follow an ant &nbsp; <kbd>Esc</kbd> stop &nbsp; <kbd>C</kbd> reset camera<br>
     <kbd>1</kbd>–<kbd>7</kbd> tools: move, food, insect, rock, water, spider den, rival colony<br>
     Drag to orbit · right-drag to pan · scroll to zoom
@@ -3294,7 +3299,7 @@ function addButton(body, label, onClick) {
     const body = group(section, open);
     entries.forEach(e => addSlider(body, e));
     if (section === 'ENVIRONMENT') {
-      addToggles(body, [['dayNight', 'Day & night cycle'], ['weather', 'Random rain']]);
+      addToggles(body, [['dayNight', 'Day & night cycle', setDayNight], ['weather', 'Random rain']]);
       addButton(body, 'Make it rain', () => { env.rainTimer = env.rainTimer > 0 ? 0 : 1200; });
     }
     if (section === 'PREDATORS')
@@ -3309,6 +3314,18 @@ function addButton(body, label, onClick) {
   }
   group('HELP', false).appendChild(document.getElementById('keys'));
 }
+
+// Day/night on or off: from the clock's button, the N key or the ENVIRONMENT toggle
+const dayNightBtn = document.getElementById('daynight');
+function setDayNight(on) {
+  FX.dayNight = on;
+  saveFX();
+  syncToggles();
+  dayNightBtn.textContent = on ? '☾ Day/night: on' : '☀ Always day';
+  dayNightBtn.classList.toggle('on', on);
+}
+setDayNight(FX.dayNight);
+dayNightBtn.addEventListener('click', () => { setDayNight(!FX.dayNight); dayNightBtn.blur(); });
 
 const statsEl = document.getElementById('stats'), foodsEl = document.getElementById('foods');
 const rateEl = document.getElementById('rate'), fpsEl = document.getElementById('fps');
@@ -3562,6 +3579,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'Escape') setFollow(false);
   else if (e.code === 'KeyC') { setFollow(false); if (FX.cutaway) setCutaway(false); homeCamera(); }
   else if (e.code === 'KeyU') setCutaway(!FX.cutaway);
+  else if (e.code === 'KeyN') setDayNight(!FX.dayNight);
   else if (e.code === 'KeyW') env.rainTimer = env.rainTimer > 0 ? 0 : 1200;
   else if (/^Digit[1-7]$/.test(e.code)) setTool(TOOLS[+e.code.slice(5) - 1][0]);
 });
