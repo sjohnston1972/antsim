@@ -56,12 +56,16 @@
   .btn { margin: 4px 0 8px; padding: 6px 12px; border-radius: 8px; background: var(--card); color: var(--text);
     border: 1px solid var(--track); }
   .btn:hover { border-color: var(--accent); }
-  #tools { position: absolute; left: 14px; top: 14px; display: flex; flex-direction: column; gap: 5px; }
-  #tools button { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 8px;
-    background: #0c0c0acc; color: var(--dim); border: 1px solid #2a2830; text-align: left; }
-  #tools button:hover { color: var(--text); }
+  #tools { position: absolute; left: 14px; top: 14px; display: flex; flex-direction: column; gap: 5px; z-index: 5; width: 210px; }
+  #tools button { display: flex; align-items: center; gap: 9px; padding: 6px 10px 6px 6px; border-radius: 8px;
+    background: #0c0c0ae6; color: var(--text); border: 1px solid #2a2830; text-align: left; }
+  #tools button:hover { border-color: #ffa53788; }
+  #tools button small { display: block; font-weight: 400; font-size: 10.5px; color: var(--dim); margin-top: 1px; line-height: 1.3; }
   #tools button.on { color: #1a1208; background: var(--accent); border-color: var(--accent); }
+  #tools button.on small { color: #1a1208bb; }
   #tools button.on kbd { background: #0002; border-color: #0003; color: #1a1208; }
+  #toolmsg { position: absolute; left: 14px; bottom: 14px; padding: 6px 10px; border-radius: 8px; background: #0c0c0ae6;
+    border: 1px solid #eb4b4688; color: var(--text); font-size: 12px; display: none; z-index: 5; }
   #nestbadge { position: absolute; transform: translate(-50%, -100%); background: #0c0c0add; border: 1px solid #ffa53755;
     border-radius: 10px; padding: 5px 8px 4px; font-size: 11px; color: var(--dim); pointer-events: none; display: none; }
   #nestbadge b { color: var(--text); font-weight: 600; }
@@ -104,6 +108,7 @@
 <body>
 <div id="view">
   <div id="tools"></div>
+  <div id="toolmsg"></div>
   <div id="follow">● Following an ant · <kbd>F</kbd> next · <kbd>Esc</kbd> stop</div>
   <div id="nestbadge"><span></span><canvas></canvas></div>
 </div>
@@ -131,7 +136,7 @@
     <kbd>Space</kbd> pause &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>T</kbd> new terrain<br>
     <kbd>U</kbd> underground cutaway &nbsp; <kbd>W</kbd> rain on/off<br>
     <kbd>F</kbd> follow an ant &nbsp; <kbd>Esc</kbd> stop &nbsp; <kbd>C</kbd> reset camera<br>
-    <kbd>1</kbd>–<kbd>6</kbd> tools: move, food, insect, rock, water, spider den<br>
+    <kbd>1</kbd>–<kbd>7</kbd> tools: move, food, insect, rock, water, spider den, rival colony<br>
     Drag to orbit · right-drag to pan · scroll to zoom
   </div>
 </aside>
@@ -168,6 +173,7 @@ const P = {
   decay: 0.992, pherStrength: 100, reinforce: 15,
   alpha: 1.0, beta: 2.0, elite: 0.3, explore: 0.15, spread: 30,
   nestX: 120, nestY: 120, denX: null, denY: null,
+  aggression: 0.5,
 };
 
 // Display settings (remembered per browser; the cutaway always starts off)
@@ -198,6 +204,9 @@ const SLIDERS = [
   ['PREDATORS', [
     ['predatorCount', 'Spiders', 0, 8, 1, 0],
     ['predatorSpeed', 'Spider speed', 0.5, 2, 0.01, 2],
+  ], true],
+  ['RIVALS', [
+    ['aggression', 'Aggression', 0, 1, 0.01, 2],
   ], true],
   ['PHEROMONES', [
     ['decay', 'Decay', 0.98, 0.998, 0.001, 3],
@@ -376,8 +385,8 @@ class Field {
     c.push(p);
   }
   update() {
-    // Trails cool off faster at night and wash away in the rain
-    const decay = P.decay ** (1 + (1 - env.day) * 1.5) * (1 - 0.02 * env.rain);
+    // Trails linger overnight while the ants shelter (so foraging resumes in the morning) and wash away in the rain
+    const decay = P.decay ** (1 - (1 - env.day) * 0.75) * (1 - 0.02 * env.rain);
     let alive = [];
     for (const p of this.items) {
       p.s *= decay;
@@ -420,8 +429,12 @@ const TO_NEST = 0, TO_FOOD = 1;
 const effective = p => p.s / (1 + p.uses * 0.3);   // crowded trails are less attractive
 
 class Ant {
-  constructor(x, y, age = 0, caste = 'forager') {
+  constructor(x, y, age = 0, caste = 'forager', col = home) {
     this.x = x; this.y = y; this.age = age; this.caste = caste;
+    this.col = col;        // the colony this ant belongs to
+    this.hp = HP[caste];
+    this.foe = null;       // enemy ant it's fighting
+    this.raid = null;      // enemy colony a soldier is raiding
     this.a = rand(0, Math.PI * 2);
     this.food = false;
     this.gait = rand(0, Math.PI * 2);
@@ -474,15 +487,26 @@ class Ant {
       // Sheltering overnight; trickle back out once it's light
       if (env.day > 0.5 && Math.random() < 0.01) {
         this.inside = false;
-        this.x = P.nestX + rand(-6, 6);
-        this.y = P.nestY + rand(-6, 6);
+        this.x = this.col.x + rand(-6, 6);
+        this.y = this.col.y + rand(-6, 6);
         this.a = rand(0, Math.PI * 2);
       }
       return null;
     }
+    if (this.foe) return this.fight();
     if (this.prey) { this.haul(); return null; }
-    if (this.caste === 'soldier') { this.guard(); return null; }
+    if (this.caste === 'soldier') return this.guard();
     return this.forage(elite, frame);
+  }
+
+  fight() {
+    // Close in and grapple; the bites themselves are dealt in combatStep. A hauler lets go of its insect
+    if (this.prey) { this.prey.carriers = this.prey.carriers.filter(a => a !== this); this.prey = null; }
+    const dx = this.foe.x - this.x, dy = this.foe.y - this.y;
+    this.turn(Math.atan2(dy, dx), 0.4, 0.05);
+    if (dx * dx + dy * dy > 25) this.move(this.caste === 'soldier' ? 1.15 : 1);
+    else this.gait += 0.3;
+    return null;
   }
 
   haul() {
@@ -490,16 +514,37 @@ class Ant {
     // and while waiting for help they keep the far end of the trail fresh
     if (this.prey.moving) {
       this.gait += P.antSpeed * 0.3;
-      if (Math.random() < 0.25) field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce);
-    } else if (Math.random() < 0.05) field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce * 0.5);
+      if (Math.random() < 0.25) this.col.field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce);
+    } else if (Math.random() < 0.05) this.col.field.deposit(this.x, this.y, P.pherStrength, TO_FOOD, P.reinforce * 0.5);
   }
 
   guard() {
     // Soldiers rush spiders that come near the nest (or near them) and bite; otherwise patrol
+    const home = this.col;
     let target = null, bd = Infinity;
     for (const sp of spiders) {
       const d = Math.hypot(sp.x - this.x, sp.y - this.y);
-      if ((Math.hypot(sp.x - P.nestX, sp.y - P.nestY) < 280 || d < 150) && d < bd) { target = sp; bd = d; }
+      if ((Math.hypot(sp.x - home.x, sp.y - home.y) < 280 || d < 150) && d < bd) { target = sp; bd = d; }
+    }
+    // With enemies about, aggressive colonies send soldiers to raid the nearest rival nest's store
+    if (!target && !this.raid && rivals.length && Math.random() < 0.0006 * Math.max(0, P.aggression - 0.3)) {
+      let near = Infinity;
+      for (const c of colonies()) {
+        const d = Math.hypot(c.x - this.x, c.y - this.y);
+        if (c !== home && d < near) { near = d; this.raid = c; }
+      }
+    }
+    if (this.raid && !target) {
+      if (this.raid.gone) { this.raid = null; this.food = false; return null; }
+      const t = this.food ? home : this.raid, dx = t.x - this.x, dy = t.y - this.y;
+      if (dx * dx + dy * dy < NEST_R * NEST_R) {
+        if (this.food) { this.food = false; this.raid = null; return 'delivered'; }
+        if (this.raid.store >= 1) { this.raid.store--; this.food = true; ripple(this.x, this.y, 0xeb4b46, 14, 24); }
+        else this.raid = null;
+      }
+      this.turn(Math.atan2(dy, dx), 0.2, 0.12);
+      this.move();
+      return null;
     }
     this.biting = false;
     if (target) {
@@ -512,18 +557,19 @@ class Ant {
       }
       this.move(1.15);
     } else {
-      const dn = Math.hypot(this.x - P.nestX, this.y - P.nestY);
-      if (dn > 150) this.turn(Math.atan2(P.nestY - this.y, P.nestX - this.x), 0.08, 0.15);
+      const dn = Math.hypot(this.x - home.x, this.y - home.y);
+      if (dn > 150) this.turn(Math.atan2(home.y - this.y, home.x - this.x), 0.08, 0.15);
       else {
         if (Math.random() < 0.04) this.a += rand(-1, 1);
         this.turn(this.a, 0, 0.1);
       }
       this.move(0.7);
     }
+    return null;
   }
 
   forage(elite, frame) {
-    const nx = P.nestX, ny = P.nestY;
+    const nx = this.col.x, ny = this.col.y, field = this.col.field;
 
     // At dusk foragers drift home; they come back out in the morning
     if (!this.food && !this.homing && env.day < 0.3 && Math.random() < 0.004) this.homing = true;
@@ -598,8 +644,10 @@ class Ant {
       // later arrivals grab hold until there are enough of them to drag it
       for (const pr of preys) {
         if (Math.hypot(pr.x - this.x, pr.y - this.y) > 13) continue;
+        if (pr.col && pr.col !== this.col) continue;   // claimed by another colony
         if (!pr.scouted) {
           pr.scouted = true;
+          pr.col = this.col;
           this.food = true;
           this.tripStart = frame;
           this.a += Math.PI;
@@ -697,8 +745,9 @@ class Prey {
     this.carriers = this.carriers.filter(a => !a.dead);
     this.moving = this.carriers.length >= this.weight;
     if (this.moving) {
-      if (Math.hypot(P.nestX - this.x, P.nestY - this.y) < NEST_R + 8) return 'delivered';
-      let d = (Math.atan2(P.nestY - this.y, P.nestX - this.x) - this.a + Math.PI) % (Math.PI * 2);
+      const nest = this.col ?? home;
+      if (Math.hypot(nest.x - this.x, nest.y - this.y) < NEST_R + 8) return 'delivered';
+      let d = (Math.atan2(nest.y - this.y, nest.x - this.x) - this.a + Math.PI) % (Math.PI * 2);
       if (d < 0) d += Math.PI * 2;
       this.a += (d - Math.PI) * 0.05;
       const speed = P.antSpeed * 0.35 * Math.min(1.4, this.carriers.length / this.weight) * (1 - 0.25 * env.rain);
@@ -753,6 +802,130 @@ class Spider {
     collideRocks(this);
     return null;
   }
+}
+
+// ---- Rival colonies: same ants, own nest, trails and store; colonies fight where they meet ----
+const HP = { forager: 12, soldier: 40 }, BITE = { forager: 0.5, soldier: 1.5 };
+const MAX_RIVALS = 3, RIVAL_CAP = 110, RIVAL_FOUNDERS = 24;
+// The player's colony, seen through the same interface as a Rival
+const home = {
+  get x() { return P.nestX; }, get y() { return P.nestY; }, get field() { return field; },
+  get store() { return store; }, set store(v) { store = v; }, get ants() { return ants; },
+  kills: 0, losses: 0,
+};
+let rivals = [];
+const colonies = () => [home, ...rivals];
+const allAnts = () => rivals.length ? ants.concat(...rivals.map(c => c.ants)) : ants;
+
+class Rival {
+  constructor(x, y, look) {
+    this.x = x; this.y = y; this.look = look;
+    this.field = new Field();
+    this.store = 20;
+    this.brood = [];       // hatch times of eggs in the nest (no nurses or cutaway for rivals)
+    this.layTimer = 0;
+    this.kills = this.losses = 0;
+    this.gone = false;
+    this.ants = [];
+    for (let i = 0; i < RIVAL_FOUNDERS; i++)
+      this.ants.push(new Ant(x + randi(-20, 20), y + randi(-20, 20), randi(0, P.antMaxAge * 0.3), i < 4 ? 'soldier' : 'forager', this));
+    this.view = makeRivalNest(look);
+  }
+  step(elite) {
+    let delivered = 0;
+    const dead = new Set();
+    for (const a of this.ants) {
+      const r = a.update(elite, frame);
+      if (r === 'dead') dead.add(a);
+      else if (r === 'delivered') delivered++;
+    }
+    for (const a of dead) a.dead = true;
+    this.ants = this.ants.filter(a => !a.dead);
+    this.store += delivered;
+    // The queen turns two food into an egg (the egg and the larva's meal) that hatches broodTime later
+    if (++this.layTimer >= P.layInterval && this.store >= 2 && this.ants.length + this.brood.length < Math.min(P.colonyCap, RIVAL_CAP)) {
+      this.store -= 2;
+      this.layTimer = 0;
+      this.brood.push(frame + P.broodTime);
+    }
+    while (this.brood.length && this.brood[0] <= frame) {
+      this.brood.shift();
+      const soldiers = this.ants.filter(a => a.caste === 'soldier').length;
+      const caste = soldiers < (this.ants.length + 1) * Math.max(0.12, P.soldierShare) ? 'soldier' : 'forager';
+      this.ants.push(new Ant(this.x + randi(-8, 8), this.y + randi(-8, 8), 0, caste, this));
+    }
+    this.gone = !this.ants.length && !this.brood.length;
+  }
+}
+
+// Bites between ants of different colonies. Soldiers pick fights from a distance, foragers only
+// with ants they bump into (more often the higher the aggression); anyone bitten bites back.
+const warCells = new Map();
+const warKey = (x, y) => ((x / 40) | 0) * 64 + ((y / 40) | 0);
+function nearestEnemy(a, reach) {
+  const gx = (a.x / 40) | 0, gy = (a.y / 40) | 0;
+  let best = null, bd = reach * reach;
+  for (let i = -1; i <= 1; i++)
+    for (let j = -1; j <= 1; j++) {
+      const c = warCells.get((gx + i) * 64 + gy + j);
+      if (c) for (const b of c) {
+        if (b.col === a.col || b.dead) continue;
+        const d = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+        if (d < bd) { bd = d; best = b; }
+      }
+    }
+  return best;
+}
+function combatStep() {
+  if (!rivals.length) return;
+  const all = allAnts();
+  warCells.clear();
+  for (const a of all) {
+    if (a.inside) continue;
+    const k = warKey(a.x, a.y);
+    let c = warCells.get(k);
+    if (!c) warCells.set(k, c = []);
+    c.push(a);
+  }
+  for (const a of all) {
+    if (a.inside || a.dead) continue;
+    if (a.foe && (a.foe.dead || a.foe.inside || (a.foe.x - a.x) ** 2 + (a.foe.y - a.y) ** 2 > 3600)) a.foe = null;
+    if (!a.foe) {
+      const soldier = a.caste === 'soldier';
+      if (Math.random() < P.aggression * (soldier ? 0.3 : 0.05)) a.foe = nearestEnemy(a, soldier ? 40 : 10);
+      if (!a.foe) continue;
+    }
+    const f = a.foe;
+    if ((f.x - a.x) ** 2 + (f.y - a.y) ** 2 > 49) continue;
+    f.hp -= BITE[a.caste];
+    if (!f.foe) f.foe = a;
+    if (f.hp > 0 || f.dead) continue;
+    f.dead = true;
+    a.col.kills++;
+    f.col.losses++;
+    a.foe = null;
+    ripple(f.x, f.y, 0xeb4b46, 10, 24);
+    // Enemy dead are food: a forager with free jaws carries the body home
+    if (a.caste === 'forager' && !a.food) { a.food = true; a.tripStart = frame; }
+  }
+  ants = ants.filter(a => !a.dead);
+  for (const c of rivals) c.ants = c.ants.filter(a => !a.dead);
+}
+
+function addRival(x, y) {
+  if (rivals.length >= MAX_RIVALS) return 'Up to 3 rival colonies';
+  if (colonies().some(c => Math.hypot(c.x - x, c.y - y) < 220)) return 'Too close to another nest';
+  if (obstacles.some(o => Math.hypot(o.x - x, o.y - y) < o.r + 30) || puddles.some(q => Math.hypot(q.x - x, q.y - y) < q.r + 30))
+    return 'Pick a clear spot';
+  const used = new Set(rivals.map(c => c.look));
+  rivals.push(new Rival(x, y, RIVAL_LOOKS.find(l => !used.has(l))));
+  return null;
+}
+function removeRival(c) {
+  scene.remove(c.view.group);
+  c.view.label.remove();
+  c.gone = true;
+  for (const a of c.ants) a.dead = true;
 }
 
 // ---- Underground: tunnel network in nest-local "wall" coordinates (x across, y up, 0 = ground) ----
@@ -1007,6 +1180,17 @@ function updateTerrainMeshes() {
 
 const FOOD_TRAIL = [1.0, 0.55, 0.12], NEST_TRAIL = [0.12, 0.5, 0.75];
 const KERNEL = [[0, 0, 1], [-1, 0, .5], [1, 0, .5], [0, -1, .5], [0, 1, .5], [-1, -1, .22], [1, -1, .22], [-1, 1, .22], [1, 1, .22]];
+function splat(px, py, col, k) {
+  const tx = (px / PS) | 0, ty = TH - 1 - ((py / PS) | 0);   // texture rows run bottom-up
+  for (const [ox, oy, w] of KERNEL) {
+    const x = tx + ox, y = ty + oy;
+    if (x < 0 || y < 0 || x >= TW || y >= TH) continue;
+    const i = (y * TW + x) * 3, kw = k * w;
+    pherAccum[i] += col[0] * kw;
+    pherAccum[i + 1] += col[1] * kw;
+    pherAccum[i + 2] += col[2] * kw;
+  }
+}
 function drawPheromones(field, t) {
   pherAccum.fill(0);
   const ref = P.pherStrength * 1.5;
@@ -1015,17 +1199,11 @@ function drawPheromones(field, t) {
     let k = Math.min(1, p.s / ref) * (food ? 0.85 : 0.5);
     // Busy food trails pulse, the pulses running towards the nest
     if (food && p.uses > 0.3) k *= 1 + 0.9 * Math.max(0, Math.sin(t * 5 + Math.hypot(p.x - P.nestX, p.y - P.nestY) * 0.08)) ** 2;
-    const col = food ? FOOD_TRAIL : NEST_TRAIL;
-    const tx = (p.x / PS) | 0, ty = TH - 1 - ((p.y / PS) | 0);   // texture rows run bottom-up
-    for (const [ox, oy, w] of KERNEL) {
-      const x = tx + ox, y = ty + oy;
-      if (x < 0 || y < 0 || x >= TW || y >= TH) continue;
-      const i = (y * TW + x) * 3, kw = k * w;
-      pherAccum[i] += col[0] * kw;
-      pherAccum[i + 1] += col[1] * kw;
-      pherAccum[i + 2] += col[2] * kw;
-    }
+    splat(p.x, p.y, food ? FOOD_TRAIL : NEST_TRAIL, k);
   }
+  // Rivals: only their food trails, in the colony's colour, so the map stays readable
+  for (const c of rivals)
+    for (const p of c.field.items) if (p.type === TO_FOOD) splat(p.x, p.y, c.look.trail, Math.min(1, p.s / ref) * 0.7);
   for (let i = 0, j = 0; i < pherAccum.length; i += 3, j += 4) {
     pherData[j] = Math.min(255, pherAccum[i] * 255);
     pherData[j + 1] = Math.min(255, pherAccum[i + 1] * 255);
@@ -1163,6 +1341,30 @@ const nest = new THREE.Group();
   nest.userData.glow = glow;
 }
 scene.add(nest);
+
+// Rival nests reuse the mound (not its glow, queen or tunnels), ringed in their colony's colour
+const nestShell = nest.children.filter(c => c !== nest.userData.glow);
+const RIVAL_LOOKS = [
+  { name: 'Black ants', ant: 0x2b2a30, soldier: 0x141317, trail: [0.75, 0.3, 1.0], css: '#b45cff' },
+  { name: 'Yellow ants', ant: 0xc4962c, soldier: 0x7d5a16, trail: [1.0, 0.3, 0.55], css: '#ff4d8c' },
+  { name: 'Pale ants', ant: 0xb9b2a4, soldier: 0x6f685c, trail: [0.85, 0.85, 0.95], css: '#e0e0f0' },
+].map(l => ({ ...l, antCol: new THREE.Color(l.ant), soldierCol: new THREE.Color(l.soldier) }));
+function makeRivalNest(look) {
+  const group = new THREE.Group();
+  for (const c of nestShell) group.add(c.clone());
+  const glow = glowPlane(new THREE.Color(look.css).getHex(), 0.22);
+  glow.material.depthTest = true;
+  glow.scale.setScalar(160);
+  glow.position.y = 1.2;
+  group.add(glow);
+  group.userData.glow = glow;
+  scene.add(group);
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.style.borderColor = look.css + '99';
+  view.appendChild(label);
+  return { group, label };
+}
 
 // ============================================================================
 // ROCKS AND GROUND COVER (rebuilt with each new terrain)
@@ -1766,13 +1968,14 @@ const _limbCol = new THREE.Color();
 // Instanced meshes for a batch of ants. Each ant is placed by a body matrix plus a point mapper
 // (local ant coords -> world), so the same rig serves ants on the terrain and in the tunnels.
 class AntRenderer {
-  constructor(clipped) {
+  constructor(clipped, cap = MAX_ANTS) {
     const [body, limb, crumb] = clipped ? [antMat, antLimbMat, crumbMat] : [antMat.clone(), antLimbMat.clone(), crumbMat.clone()];
-    this.workers = instanced(workerGeo, body, MAX_ANTS);
-    this.soldiers = instanced(soldierGeo, body, MAX_ANTS);
-    this.limbs = instanced(antLegGeo, limb, MAX_ANTS * LIMBS_PER_ANT);
-    this.joints = instanced(antJointGeo, limb, MAX_ANTS * JOINTS_PER_ANT);
-    this.crumbs = instanced(crumbGeo, crumb, MAX_ANTS);
+    this.cap = cap;
+    this.workers = instanced(workerGeo, body, cap);
+    this.soldiers = instanced(soldierGeo, body, cap);
+    this.limbs = instanced(antLegGeo, limb, cap * LIMBS_PER_ANT);
+    this.joints = instanced(antJointGeo, limb, cap * JOINTS_PER_ANT);
+    this.crumbs = instanced(crumbGeo, crumb, cap);
     this.meshes = [this.workers, this.soldiers, this.limbs, this.joints, this.crumbs];
     for (const m of this.meshes) m.userData.noClip = !clipped;
     for (const m of [this.workers, this.soldiers, this.limbs, this.joints]) m.setColorAt(0, ANT_SEARCH);
@@ -1793,7 +1996,7 @@ class AntRenderer {
     this.joints.setColorAt(this.nj++, _limbCol);
   }
   add(ant, bodyMatrix, pt, sc, col, soldier) {
-    if (this.nw >= MAX_ANTS || this.ns >= MAX_ANTS) return;
+    if (this.nw >= this.cap || this.ns >= this.cap) return;
     this.sc = sc;
     if (soldier) { this.soldiers.setMatrixAt(this.ns, bodyMatrix); this.soldiers.setColorAt(this.ns++, col); }
     else { this.workers.setMatrixAt(this.nw, bodyMatrix); this.workers.setColorAt(this.nw++, col); }
@@ -1847,7 +2050,7 @@ class AntRenderer {
     }
   }
 }
-const surfaceAnts = new AntRenderer(true), nurseAnts = new AntRenderer(false);
+const surfaceAnts = new AntRenderer(true, MAX_ANTS + MAX_RIVALS * RIVAL_CAP), nurseAnts = new AntRenderer(false);
 
 // Ants are scaled up when the camera is far away so they stay readable from the overview
 let VS = S;
@@ -1865,7 +2068,7 @@ function antPoint(out, ant, c, s, lx, ly, lz) {
 function drawAnts() {
   VS = S * (FX.antBoost ? THREE.MathUtils.clamp(camera.position.distanceTo(controls.target) / 450, 1, 2.0) : 1);
   surfaceAnts.begin();
-  for (const ant of ants) {
+  for (const ant of allAnts()) {
     if (ant.inside) continue;
     const c = Math.cos(ant.a), s = Math.sin(ant.a);
     // Body: one rigid mesh, tilted to the slope it's walking on
@@ -1876,7 +2079,8 @@ function drawAnts() {
     dummy.scale.setScalar(VS);
     dummy.updateMatrix();
     const soldier = ant.caste === 'soldier';
-    const col = soldier ? ANT_SOLDIER : ant.food || ant.prey ? ANT_CARRY : ANT_SEARCH;
+    const look = ant.col.look;
+    const col = look ? (soldier ? look.soldierCol : look.antCol) : soldier ? ANT_SOLDIER : ant.food || ant.prey ? ANT_CARRY : ANT_SEARCH;
     surfaceAnts.add(ant, dummy.matrix, (out, lx, ly, lz) => antPoint(out, ant, c, s, lx, ly, lz), VS, col, soldier);
   }
   surfaceAnts.end();
@@ -2806,7 +3010,7 @@ function envStep() {
       if (lvl > 0.2) wetObstacles.push({ x: q.x, y: q.y, r: puddleRadius(q, lvl) * 0.85 });
     }
     // Standing water washes out any trail that crosses it
-    if (frame % 30 === 0) for (const o of wetObstacles) field.wash(o.x, o.y, o.r);
+    if (frame % 30 === 0) for (const o of wetObstacles) for (const c of colonies()) c.field.wash(o.x, o.y, o.r);
   }
   // Raindrops ring the puddles
   if (env.rain > 0.3 && Math.random() < 0.2 * env.rain) {
@@ -2820,8 +3024,9 @@ function envStep() {
 
 function spawnFood(existing = []) {
   for (let i = 0; i < 100; i++) {
-    const x = randi(100, W - 100), y = randi(100, H - 100);
-    if (Math.hypot(x - P.nestX, y - P.nestY) < 200) continue;
+    // Within a forager's reach of the nest: far sources can't feed a colony that shelters every night
+    const x = randi(100, W - 100), y = randi(100, H - 100), dn = Math.hypot(x - P.nestX, y - P.nestY);
+    if (dn < 200 || dn > 480 + i * 6) continue;   // the limit relaxes if the map is crowded
     if (existing.some(f => f.pieces > 0 && Math.hypot(x - f.x, y - f.y) < 150)) continue;
     if (obstacles.some(r => Math.hypot(x - r.x, y - r.y) < r.r + P.foodSize + 15)) continue;
     if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + P.foodSize)) continue;
@@ -2848,9 +3053,12 @@ function reset() {
   preys.forEach(removePrey);
   spiders.forEach(removeSpider);
   preys = []; spiders = [];
+  rivals.forEach(removeRival);
+  rivals = [];
+  home.kills = home.losses = 0;
   // Founders split by caste; staggered ages so they don't all die at once
   const total = P.antCount, nN = Math.round(total * P.nurseShare), nS = Math.round(total * P.soldierShare);
-  const age = () => randi(0, P.antMaxAge / 2);
+  const age = () => randi(0, P.antMaxAge * 0.3);
   ants = []; nurses = [];
   for (let i = 0; i < total; i++) {
     if (i < nN) nurses.push(new Nurse(age()));
@@ -2915,11 +3123,11 @@ function step() {
   for (let i = preys.length - 1; i >= 0; i--) {
     const pr = preys[i];
     if (pr.update() === 'delivered') {
-      store += pr.value;
-      totalFood += pr.value;
-      preyDelivered++;
+      const col = pr.col ?? home;
+      col.store += pr.value;
+      if (col === home) { totalFood += pr.value; preyDelivered++; }
       for (const a of pr.carriers) a.a = rand(0, Math.PI * 2);
-      ripple(P.nestX, P.nestY, 0xd8b04a, 40, 50);
+      ripple(col.x, col.y, 0xd8b04a, 40, 50);
       removePrey(pr);
       preys.splice(i, 1);
     }
@@ -2932,6 +3140,20 @@ function step() {
   store += deliveries;
   colonyStep();
   ants.length = Math.min(ants.length, MAX_ANTS);
+
+  // Rival colonies live, forage and breed alongside; a colony with no ants or eggs left is gone
+  for (let i = rivals.length - 1; i >= 0; i--) {
+    const c = rivals[i];
+    c.field.update();
+    const ranked = c.ants.filter(a => a.trips.length).sort((a, b) => a.score() - b.score());
+    c.step(new Set(ranked.slice(0, Math.max(1, Math.floor(ranked.length * P.elite)))));
+    if (c.gone) {
+      ripple(c.x, c.y, new THREE.Color(c.look.css).getHex(), 90, 80);
+      removeRival(c);
+      rivals.splice(i, 1);
+    }
+  }
+  combatStep();
 
   // Spiders hunt, get bitten by soldiers, die, and come back after a while
   if (spiderCooldown > 0) spiderCooldown--;
@@ -2947,11 +3169,11 @@ function step() {
       spidersKilled++;
       continue;
     }
-    const prey = sp.update(ants);
+    const prey = sp.update(allAnts());
     if (!prey) continue;
     if (prey.caste === 'soldier' && Math.random() < 0.5) { sp.timer = 40; continue; }   // soldiers fight free
-    const k = ants.indexOf(prey);
-    if (k >= 0) ants.splice(k, 1);
+    const list = prey.col.ants, k = list.indexOf(prey);
+    if (k >= 0) list.splice(k, 1);
     prey.dead = true;
     sp.timer = 480;   // a slow meal
     ripple(prey.x, prey.y, 0xeb4b46, 14, 30);
@@ -3077,6 +3299,13 @@ function addButton(body, label, onClick) {
     }
     if (section === 'PREDATORS')
       addButton(body, 'Clear spider den', () => { P.denX = P.denY = null; denMarker.visible = false; });
+    if (section === 'RIVALS') {
+      const note = document.createElement('div');
+      note.className = 'qlabel';
+      note.textContent = 'Found rival nests with tool 7. Soldiers attack enemies on sight and, at high aggression, raid enemy food stores.';
+      body.prepend(note);
+      addButton(body, 'Remove rival colonies', () => { rivals.forEach(removeRival); rivals = []; });
+    }
   }
   group('HELP', false).appendChild(document.getElementById('keys'));
 }
@@ -3129,6 +3358,8 @@ function updatePanel(fps) {
     ['Larvae', starving ? `${stage(LARVA)} (${starving} hungry)` : stage(LARVA)], ['Pupae', stage(PUPA)],
     ['Food collected', totalFood], ['Insects hauled', preyDelivered],
     ['Spiders', `${spiders.length} (${spidersKilled} killed)`], ['Elite ants', elite],
+    ...(rivals.length || home.kills || home.losses ? [['Enemies killed', home.kills], ['Ants lost in war', home.losses],
+      ...rivals.map(c => [`<i style="color:${c.look.css}">●</i> ${c.look.name}`, `${c.ants.length} · ${c.store} food`])] : []),
     ['Avg trip', `${avg | 0}f`], ['Best trip', `${best | 0}f`]];
   statsEl.innerHTML = stats.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('');
   const mains = foods.filter(f => f.main), crumbs = foods.length - mains.length;
@@ -3177,25 +3408,27 @@ function simPoint(e) {
 function grabTarget(p) {
   if (!p) return null;
   if (Math.hypot(p.x - P.nestX, p.y - P.nestY) < 40) return 'nest';
+  const rival = rivals.find(c => Math.hypot(p.x - c.x, p.y - c.y) < 40);
+  if (rival) return { rival };
   const i = foods.findIndex(f => f.pieces > 0 && f.inside(p.x, p.y));
   return i >= 0 ? i : null;
 }
 
 // Tools: what a left click on the ground does
 const TOOLS = [
-  ['move', 'Move', 'Drag the nest or food; drag elsewhere to orbit'],
-  ['food', 'Drop food', 'Click to drop a small crumb pile'],
-  ['insect', 'Dead insect', 'Click to drop prey; ants team up to drag it home'],
+  ['move', 'Move', 'Drag a nest or food'],
+  ['food', 'Drop food', 'Click for a crumb pile'],
+  ['insect', 'Dead insect', 'Ants team up to haul it'],
   ['rock', 'Rock', 'Click to place a rock'],
-  ['water', 'Water', 'Click or drag to wash pheromone trails away'],
-  ['den', 'Spider den', 'Click to set where spiders appear'],
+  ['water', 'Water', 'Drag to wash trails away'],
+  ['den', 'Spider den', 'Where spiders appear'],
+  ['colony', 'Rival colony', 'Found an enemy nest (max 3)'],
 ];
 let tool = 'move';
 const toolsEl = document.getElementById('tools');
 TOOLS.forEach(([name, label, tip], i) => {
   const b = document.createElement('button');
-  b.innerHTML = `<kbd>${i + 1}</kbd>${label}`;
-  b.title = tip;
+  b.innerHTML = `<kbd>${i + 1}</kbd><span>${label}<small>${tip}</small></span>`;
   b.dataset.tool = name;
   b.addEventListener('click', () => { setTool(name); b.blur(); });
   toolsEl.appendChild(b);
@@ -3217,20 +3450,32 @@ function useTool(p) {
     cutDirty = true;
     ripple(p.x, p.y, 0xd8b04a, 24, 30);
   } else if (tool === 'rock') {
-    if (Math.hypot(p.x - P.nestX, p.y - P.nestY) < 70) return;
+    if (colonies().some(c => Math.hypot(p.x - c.x, p.y - c.y) < 70)) return;
     const r = { x: p.x, y: p.y, r: rand(6, 18) };
     rocks.push(r);
     obstacles.push(r);
     addRockMesh(r, Math.random);
     ripple(p.x, p.y, 0x9a958e, r.r + 8, 30);
   } else if (tool === 'water') {
-    field.wash(p.x, p.y, 45);
+    for (const c of colonies()) c.field.wash(p.x, p.y, 45);
     if (performance.now() - lastWash > 120) { ripple(p.x, p.y, 0x4aa8ff, 45, 35); lastWash = performance.now(); }
   } else if (tool === 'den') {
     P.denX = p.x;
     P.denY = p.y;
     ripple(p.x, p.y, 0xeb4b46, 30, 40);
+  } else if (tool === 'colony') {
+    const why = addRival(p.x, p.y);
+    if (why) toolMessage(why);
+    else ripple(p.x, p.y, new THREE.Color(rivals.at(-1).look.css).getHex(), 60, 50);
   }
+}
+const toolMsgEl = document.getElementById('toolmsg');
+let toolMsgTimer = 0;
+function toolMessage(text) {
+  toolMsgEl.textContent = text;
+  toolMsgEl.style.display = 'block';
+  clearTimeout(toolMsgTimer);
+  toolMsgTimer = setTimeout(() => { toolMsgEl.style.display = 'none'; }, 2200);
 }
 
 // Registered before OrbitControls so a grab or tool use can disable orbiting for that drag
@@ -3258,6 +3503,7 @@ renderer.domElement.addEventListener('pointermove', e => {
   if (!p) return;
   const x = Math.max(30, Math.min(W - 30, p.x)), y = Math.max(30, Math.min(H - 30, p.y));
   if (dragging === 'nest') { P.nestX = x; P.nestY = y; }
+  else if (dragging.rival) { dragging.rival.x = x; dragging.rival.y = y; }
   else if (foods[dragging]) { foods[dragging].x = x; foods[dragging].y = y; }
 });
 addEventListener('pointerup', () => {
@@ -3317,7 +3563,7 @@ addEventListener('keydown', e => {
   else if (e.code === 'KeyC') { setFollow(false); if (FX.cutaway) setCutaway(false); homeCamera(); }
   else if (e.code === 'KeyU') setCutaway(!FX.cutaway);
   else if (e.code === 'KeyW') env.rainTimer = env.rainTimer > 0 ? 0 : 1200;
-  else if (/^Digit[1-6]$/.test(e.code)) setTool(TOOLS[+e.code.slice(5) - 1][0]);
+  else if (/^Digit[1-7]$/.test(e.code)) setTool(TOOLS[+e.code.slice(5) - 1][0]);
 });
 
 function resize() {
@@ -3357,6 +3603,10 @@ function loop(now) {
   nest.userData.glow.visible = FX.nestGlow && !FX.cutaway;
   nest.position.set(wx(P.nestX), hAt(P.nestX, P.nestY) - 0.3, wz(P.nestY));
   nest.updateMatrixWorld();
+  for (const c of rivals) {
+    c.view.group.position.set(wx(c.x), hAt(c.x, c.y) - 0.3, wz(c.y));
+    c.view.group.userData.glow.visible = FX.nestGlow;
+  }
   updateCutPlanes();
   if (cutDirty || (FX.cutaway && panelTick % 45 === 0)) applyCut();
 
@@ -3387,6 +3637,8 @@ function loop(now) {
     placeLabel(sp.view.hp, wx(sp.x), hAt(sp.x, sp.y) + 34, wz(sp.y), sp.hp < sp.maxHp - 1 ? null : '');
     sp.view.hp.firstChild.style.width = `${Math.max(0, sp.hp / sp.maxHp) * 100}%`;
   }
+  for (const c of rivals)
+    placeLabel(c.view.label, wx(c.x), hAt(c.x, c.y) + 34, wz(c.y), FX.nestInfo && !FX.cutaway ? `${c.ants.length} ants · ${c.store} food` : '');
   if (FX.nestInfo && !FX.cutaway) placeLabel(badge, wx(P.nestX), hAt(P.nestX, P.nestY) + 40, wz(P.nestY), null);
   else badge.style.display = 'none';
 
