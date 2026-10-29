@@ -811,7 +811,7 @@ class Spider {
 
 // ---- Rival colonies: same ants, own nest, trails and store; colonies fight where they meet ----
 const HP = { forager: 12, soldier: 40 }, BITE = { forager: 0.5, soldier: 1.5 };
-const MAX_RIVALS = 3, RIVAL_CAP = 110, RIVAL_FOUNDERS = 24;
+const MAX_RIVALS = 3, RIVAL_CAP = 110, RIVAL_FOUNDERS = 32;
 // The player's colony, seen through the same interface as a Rival
 const home = {
   get x() { return P.nestX; }, get y() { return P.nestY; }, get field() { return field; },
@@ -826,7 +826,7 @@ class Rival {
   constructor(x, y, look) {
     this.x = x; this.y = y; this.look = look;
     this.field = new Field();
-    this.store = 20;
+    this.store = 30;
     this.brood = [];       // hatch times of eggs in the nest (no nurses or cutaway for rivals)
     this.layTimer = 0;
     this.kills = this.losses = 0;
@@ -923,7 +923,12 @@ function addRival(x, y) {
   if (obstacles.some(o => Math.hypot(o.x - x, o.y - y) < o.r + 30) || puddles.some(q => Math.hypot(q.x - x, q.y - y) < q.r + 30))
     return 'Pick a clear spot';
   const used = new Set(rivals.map(c => c.look));
-  rivals.push(new Rival(x, y, RIVAL_LOOKS.find(l => !used.has(l))));
+  const rival = new Rival(x, y, RIVAL_LOOKS.find(l => !used.has(l)));
+  rivals.push(rival);
+  // A new colony settles beside food of its own
+  const f = spawnFood(foods, rival);
+  foods.push(f);
+  ripple(f.x, f.y, 0x96e150, 60, 45);
   return null;
 }
 function removeRival(c) {
@@ -3027,17 +3032,22 @@ function envStep() {
   }
 }
 
-function spawnFood(existing = []) {
-  for (let i = 0; i < 100; i++) {
+// A main food source grows within foraging reach of the colony it's `near`, and regrows near it
+function spawnFood(existing = [], near = home) {
+  let f = null;
+  for (let i = 0; i < 100 && !f; i++) {
     // Within a forager's reach of the nest: far sources can't feed a colony that shelters every night
-    const x = randi(100, W - 100), y = randi(100, H - 100), dn = Math.hypot(x - P.nestX, y - P.nestY);
+    const x = randi(100, W - 100), y = randi(100, H - 100), dn = Math.hypot(x - near.x, y - near.y);
     if (dn < 200 || dn > 480 + i * 6) continue;   // the limit relaxes if the map is crowded
+    if (colonies().some(c => Math.hypot(x - c.x, y - c.y) < 150)) continue;
     if (existing.some(f => f.pieces > 0 && Math.hypot(x - f.x, y - f.y) < 150)) continue;
     if (obstacles.some(r => Math.hypot(x - r.x, y - r.y) < r.r + P.foodSize + 15)) continue;
     if (puddles.some(q => Math.hypot(x - q.x, y - q.y) < q.r + P.foodSize)) continue;
-    return new Food(x, y, P.foodSize);
+    f = new Food(x, y, P.foodSize);
   }
-  return new Food(randi(100, W - 100), randi(100, H - 100), P.foodSize);
+  f ??= new Food(randi(100, W - 100), randi(100, H - 100), P.foodSize);
+  f.near = near;
+  return f;
 }
 
 function spawnNaturalPrey() {
@@ -3119,7 +3129,7 @@ function step() {
     f.regrow = (f.regrow || 901) - 1;
     if (f.regrow === 0) {
       disposeFoodView(f);
-      foods[i] = spawnFood(foods);
+      foods[i] = spawnFood(foods, f.near && !f.near.gone ? f.near : home);
       ripple(foods[i].x, foods[i].y, 0x96e150, 60, 45);
     }
   }
